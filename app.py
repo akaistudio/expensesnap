@@ -753,8 +753,9 @@ function showToast(msg, type='success') {
 </html>
 """
 
-init_db()  if __name__ == '__main__':
-    init_db()
+init_db()
+
+if __name__ == '__main__':
     print("\n" + "="*50)
     print("  🧾 ExpenseSnap is running!")
     print("="*50)
