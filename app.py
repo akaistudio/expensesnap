@@ -297,7 +297,19 @@ def remove_member(user_id):
     cur.execute("DELETE FROM users WHERE id=%s", (user_id,)); conn.commit(); conn.close()
     return jsonify({"success": True})
 
-# ── Expenses ───────────────────────────────────────────────────
+@app.route('/api/team/<user_id>/reset-password', methods=['POST'])
+@login_required
+def reset_password(user_id):
+    if not is_company_admin(): return jsonify({"error": "Admin access required"}), 403
+    new_password = request.json.get('password','').strip() if request.json else ''
+    if len(new_password) < 6: return jsonify({"error": "Password must be at least 6 characters"}), 400
+    conn = get_db(); cur = conn.cursor()
+    if not is_super_admin():
+        cur.execute("SELECT company_id FROM users WHERE id=%s", (user_id,)); u = cur.fetchone()
+        if not u or u['company_id'] != session.get('company_id'): conn.close(); return jsonify({"error": "Access denied"}), 403
+    cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (hash_password(new_password), user_id))
+    conn.commit(); conn.close()
+    return jsonify({"success": True})
 @app.route('/api/upload', methods=['POST'])
 @login_required
 def upload_receipt():
@@ -868,7 +880,7 @@ async function loadTeam() {
       <div class="member-email">${u.email}</div></div>
       <div style="display:flex;align-items:center;gap:8px;">
       <span class="role-badge ${u.role==='super_admin'?'role-super':u.role==='company_admin'?'role-admin':'role-member'}">${u.role.replace('_',' ')}</span>
-      ${u.role!=='super_admin'?`<button class="btn btn-danger btn-sm" onclick="removeMember('${u.id}')">Remove</button>`:''}</div></div>`).join('')
+      ${u.role!=='super_admin'?`<button class="btn btn-ghost btn-sm" onclick="resetPassword('${u.id}','${u.name}')">🔑 Reset</button><button class="btn btn-danger btn-sm" onclick="removeMember('${u.id}')">Remove</button>`:''}</div></div>`).join('')
       || '<p style="color:var(--text2);font-size:14px;">No team members yet</p>';
     document.getElementById('pendingInvites').innerHTML = data.pending_invites.length ?
       data.pending_invites.map(i => `<div class="invite-code">${i.code} <span style="color:var(--text2);font-size:11px">(${i.role||'member'})</span></div>`).join(' ') :
@@ -900,6 +912,15 @@ async function removeMember(id) {
   if (!confirm('Remove this team member?')) return;
   await fetch(`/api/team/${id}`,{method:'DELETE'});
   loadTeam(); showToast('Member removed','success');
+}
+
+async function resetPassword(id, name) {
+  const pwd = prompt(`Enter new password for ${name} (min 6 characters):`);
+  if (!pwd || pwd.length < 6) { if(pwd) showToast('Password must be at least 6 characters','error'); return; }
+  const res = await fetch(`/api/team/${id}/reset-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
+  const data = await res.json();
+  if (data.success) showToast(`Password reset for ${name}`,'success');
+  else showToast(data.error,'error');
 }
 
 // Companies (Super Admin)
