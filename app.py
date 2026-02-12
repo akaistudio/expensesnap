@@ -788,6 +788,8 @@ background:rgba(108,92,231,0.15);color:var(--accent2)}
 .delete-btn{background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;
 padding:4px 8px;border-radius:6px;transition:all 0.2s}
 .delete-btn:hover{color:var(--red);background:rgba(255,107,107,0.1)}
+.expense-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:8px;cursor:pointer;transition:border-color 0.2s}
+.expense-card:hover{border-color:var(--accent)}
 
 .empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
 .empty-state .icon{font-size:48px;margin-bottom:16px}
@@ -1045,20 +1047,39 @@ async function loadExpenses() {
     const expenses = await res.json();
     if (!expenses.length) { document.getElementById('expenseTable').innerHTML = '<div class="empty-state"><div class="icon">🧾</div><p>No expenses yet</p></div>'; return; }
     const showCompany = isSuperAdmin && !selectedCompany;
-    document.getElementById('expenseTable').innerHTML = `
-      <table><thead><tr><th>Date</th><th>Vendor</th><th>Category</th><th>Total</th><th>Currency</th><th>By</th>
-      ${showCompany?'<th>Company</th>':''}<th></th></tr></thead>
-      <tbody>${expenses.map(e => `<tr>
-        <td>${e.date}</td>
-        <td><strong>${e.vendor}</strong><br><span style="font-size:12px;color:var(--text2)">${e.location||''}</span></td>
-        <td><span class="cat-badge">${e.category}</span></td>
-        <td class="amount">${Number(e.total).toFixed(2)}</td>
-        <td>${e.currency}</td>
-        <td style="font-size:13px;color:var(--text2)">${e.uploaded_by||''}</td>
-        ${showCompany?`<td style="font-size:13px">${e.company_name||''}</td>`:''}
-        <td><button class="delete-btn" onclick="deleteExpense('${e.id}')">✕</button></td>
-      </tr>`).join('')}</tbody></table>`;
+    document.getElementById('expenseTable').innerHTML = expenses.map(e => `
+      <div class="expense-card" onclick="toggleExpenseDetail(this)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <strong>${e.vendor}</strong>
+              <span class="cat-badge">${e.category}</span>
+              ${showCompany?`<span style="font-size:11px;color:var(--accent2);background:rgba(99,102,241,0.15);padding:2px 8px;border-radius:8px;">${e.company_name||''}</span>`:''}
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px;">${e.date} · ${e.location||''} ${e.uploaded_by?'· '+e.uploaded_by:''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="amount" style="font-size:18px;">${e.currency} ${Number(e.total).toFixed(2)}</div>
+            ${e.total_home?`<div style="font-size:11px;color:var(--text2);">Home: ${Number(e.total_home).toFixed(2)} · USD: ${Number(e.total_usd).toFixed(2)}</div>`:''}
+          </div>
+        </div>
+        <div class="expense-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:8px;">
+            <div><span style="color:var(--text2);font-size:12px;">Subtotal</span><br><strong>${e.currency} ${Number(e.subtotal||0).toFixed(2)}</strong></div>
+            <div><span style="color:var(--text2);font-size:12px;">Tax</span><br><strong style="color:#f59e0b;">${e.currency} ${Number(e.tax||0).toFixed(2)}</strong></div>
+            <div><span style="color:var(--text2);font-size:12px;">Tip</span><br><strong>${e.currency} ${Number(e.tip||0).toFixed(2)}</strong></div>
+            <div><span style="color:var(--text2);font-size:12px;">Payment</span><br><strong>${e.payment_method||'N/A'}</strong></div>
+          </div>
+          ${e.items?`<div style="margin-top:8px;"><span style="color:var(--text2);font-size:12px;">Items</span><br><div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.6;">${e.items}</div></div>`:''}
+          <div style="margin-top:8px;text-align:right;"><button class="delete-btn" onclick="event.stopPropagation();deleteExpense('${e.id}')" style="font-size:12px;color:#ef4444;background:rgba(239,68,68,0.1);border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">🗑 Delete</button></div>
+        </div>
+      </div>`).join('');
   } catch(e) { console.error(e); }
+}
+
+function toggleExpenseDetail(card) {
+  const detail = card.querySelector('.expense-detail');
+  if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
 }
 
 async function deleteExpense(id) {
