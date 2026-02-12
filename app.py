@@ -311,6 +311,65 @@ def delete_company(company_id):
     cur.execute("DELETE FROM companies WHERE id=%s", (company_id,)); conn.commit(); conn.close()
     return jsonify({"success": True})
 
+@app.route('/api/companies/<company_id>', methods=['PUT'])
+@login_required
+def edit_company(company_id):
+    """Edit company settings - accessible by super admin or that company's admin"""
+    if not is_company_admin(): return jsonify({"error": "Admin access required"}), 403
+    if not is_super_admin() and session.get('company_id') != company_id:
+        return jsonify({"error": "Can only edit your own company"}), 403
+    data = request.json or {}
+    conn = get_db(); cur = conn.cursor()
+    fields, values = [], []
+    if 'name' in data and data['name'].strip():
+        fields.append("name=%s"); values.append(data['name'].strip())
+    if 'home_currency' in data and data['home_currency'].strip():
+        fields.append("home_currency=%s"); values.append(data['home_currency'].strip().upper())
+    if not fields: conn.close(); return jsonify({"error": "Nothing to update"}), 400
+    values.append(company_id)
+    cur.execute(f"UPDATE companies SET {','.join(fields)} WHERE id=%s", values)
+    conn.commit(); conn.close()
+    # Update session if editing own company
+    if session.get('company_id') == company_id:
+        if 'name' in data: session['company_name'] = data['name'].strip()
+    return jsonify({"success": True})
+
+@app.route('/api/companies/<company_id>/recalculate', methods=['POST'])
+@login_required
+def recalculate_expenses(company_id):
+    """Recalculate all converted amounts for a company using current exchange rates"""
+    if not is_company_admin(): return jsonify({"error": "Admin access required"}), 403
+    if not is_super_admin() and session.get('company_id') != company_id:
+        return jsonify({"error": "Can only recalculate your own company"}), 403
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT home_currency FROM companies WHERE id=%s", (company_id,))
+    comp = cur.fetchone()
+    if not comp: conn.close(); return jsonify({"error": "Company not found"}), 404
+    home_currency = comp.get('home_currency', 'USD') or 'USD'
+    cur.execute("SELECT id, total, currency FROM expenses WHERE company_id=%s", (company_id,))
+    expenses = cur.fetchall(); updated = 0
+    for e in expenses:
+        bill_curr = (e.get('currency') or 'USD').upper()
+        total = float(e.get('total') or 0)
+        total_home = convert_currency(total, bill_curr, home_currency)
+        total_usd = convert_currency(total, bill_curr, 'USD')
+        cur.execute("UPDATE expenses SET total_home=%s, total_usd=%s WHERE id=%s", (total_home, total_usd, e['id']))
+        updated += 1
+    conn.commit(); conn.close()
+    return jsonify({"success": True, "updated": updated, "home_currency": home_currency})
+
+@app.route('/api/my-company')
+@login_required
+def get_my_company():
+    """Get current user's company settings"""
+    company_id = session.get('company_id')
+    if not company_id: return jsonify({"error": "No company"}), 400
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM companies WHERE id=%s", (company_id,))
+    comp = cur.fetchone(); conn.close()
+    if not comp: return jsonify({"error": "Company not found"}), 404
+    return jsonify(dict(comp))
+
 # ── Invite Codes ───────────────────────────────────────────────
 @app.route('/api/invite', methods=['POST'])
 @login_required
@@ -530,7 +589,8 @@ def export_excel():
 @login_required
 def index():
     return render_template_string(MAIN_HTML, user_name=session.get('user_name',''),
-                                  user_role=session.get('user_role','member'), company_name=session.get('company_name',''))
+                                  user_role=session.get('user_role','member'), company_name=session.get('company_name',''),
+                                  company_id=session.get('company_id',''))
 
 
 # ── Login HTML ─────────────────────────────────────────────────
@@ -826,6 +886,22 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div id="inviteResult" style="margin-top:16px;"></div></div>
 <div class="team-card"><h3>Team Members</h3><div id="teamList"></div></div>
 <div class="team-card"><h3>Unused Invite Codes</h3><div id="pendingInvites"></div></div>
+<div class="team-card" id="companySettingsCard">
+<h3>⚙️ Company Settings</h3>
+<p style="color:var(--text2);font-size:14px;margin-bottom:16px;">Set your company's home currency. All receipts will be converted to this currency automatically.</p>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+<label style="color:var(--text2);font-size:14px;">Home Currency:</label>
+<select id="myCompanyCurrency" style="padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none">
+<option value="USD">USD $</option><option value="EUR">EUR €</option><option value="GBP">GBP £</option>
+<option value="INR">INR ₹</option><option value="CAD">CAD $</option><option value="AUD">AUD $</option>
+<option value="SGD">SGD $</option><option value="AED">AED</option><option value="JPY">JPY ¥</option>
+<option value="CHF">CHF</option><option value="CNY">CNY ¥</option><option value="MXN">MXN $</option>
+</select>
+<button class="btn btn-primary" onclick="saveCompanyCurrency()">💾 Save</button>
+<button class="btn btn-ghost" onclick="recalculateMyExpenses()">🔄 Recalculate All</button>
+</div>
+<div id="settingsResult" style="margin-top:12px;"></div>
+</div>
 </div>
 
 <div id="companies" class="section">
@@ -860,7 +936,9 @@ background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var
 
 <script>
 const USER_ROLE = '{{ user_role }}';
+const userRole = USER_ROLE;
 const isSuperAdmin = USER_ROLE === 'super_admin';
+const myCompanyId = '{{ company_id }}' === 'None' ? '' : '{{ company_id }}';
 let selectedCompany = '';
 
 // Show super admin UI
@@ -900,7 +978,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.getElementById(tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'dashboard') loadDashboard();
     if (tab.dataset.tab === 'expenses') loadExpenses();
-    if (tab.dataset.tab === 'team') loadTeam();
+    if (tab.dataset.tab === 'team') { loadTeam(); loadCompanySettings(); }
     if (tab.dataset.tab === 'companies') loadCompanies();
   });
 });
@@ -1053,8 +1131,10 @@ async function loadCompanies() {
     <div class="company-card">
     <div><div class="company-info"><h4>${c.name}</h4></div>
     <div class="company-stats">${c.user_count} users · ${c.expense_count} receipts · ${c.home_currency||'USD'}</div></div>
-    <div style="display:flex;align-items:center;gap:16px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <div class="company-total">${c.home_currency||'USD'} ${c.total_spent.toFixed(2)}</div>
+    <button class="btn btn-ghost btn-sm" onclick="editCompanyCurrency('${c.id}','${c.name}','${c.home_currency||'USD'}')">💱 Currency</button>
+    <button class="btn btn-ghost btn-sm" onclick="recalculateCompany('${c.id}','${c.name}')">🔄 Recalc</button>
     <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}','${c.name}')">Delete</button></div>
     </div>`).join('') || '<div class="empty-state"><p>No companies yet. Create one above!</p></div>';
 }
@@ -1081,6 +1161,65 @@ async function deleteCompany(id,name) {
   if (!confirm(`Delete "${name}" and ALL its data? This cannot be undone!`)) return;
   await fetch(`/api/companies/${id}`,{method:'DELETE'});
   loadCompanies(); loadCompanyFilter(); showToast(`${name} deleted`,'success');
+}
+
+async function editCompanyCurrency(id, name, currentCurrency) {
+  const currencies = ['USD','EUR','GBP','INR','CAD','AUD','SGD','AED','JPY','CHF','CNY','MXN'];
+  const curr = prompt(`Change home currency for "${name}"\nCurrent: ${currentCurrency}\n\nEnter new currency code (${currencies.join(', ')}):`);
+  if (!curr) return;
+  if (!currencies.includes(curr.toUpperCase())) { showToast('Invalid currency code','error'); return; }
+  const res = await fetch(`/api/companies/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({home_currency:curr.toUpperCase()})});
+  const data = await res.json();
+  if (data.success) { showToast(`${name} currency changed to ${curr.toUpperCase()}`,'success'); loadCompanies(); }
+  else showToast(data.error,'error');
+}
+
+async function recalculateCompany(id, name) {
+  if (!confirm(`Recalculate all converted amounts for "${name}" using current exchange rates?`)) return;
+  const res = await fetch(`/api/companies/${id}/recalculate`,{method:'POST'});
+  const data = await res.json();
+  if (data.success) { showToast(`${data.updated} receipts recalculated to ${data.home_currency}`,'success'); loadCompanies(); loadDashboard(); }
+  else showToast(data.error,'error');
+}
+
+// Company Settings (for Company Admins)
+async function loadCompanySettings() {
+  const card = document.getElementById('companySettingsCard');
+  if (!card) return;
+  if (userRole === 'member') { card.style.display = 'none'; return; }
+  try {
+    const cid = selectedCompany || myCompanyId;
+    if (isSuperAdmin && !selectedCompany) { card.style.display = 'none'; return; }
+    const res = await fetch('/api/my-company');
+    if (!res.ok) { card.style.display = 'none'; return; }
+    const comp = await res.json();
+    const sel = document.getElementById('myCompanyCurrency');
+    if (sel && comp.home_currency) sel.value = comp.home_currency;
+  } catch(e) { console.error(e); }
+}
+
+async function saveCompanyCurrency() {
+  const curr = document.getElementById('myCompanyCurrency').value;
+  const cid = selectedCompany || myCompanyId;
+  if (!cid || cid === 'None') { showToast('No company selected','error'); return; }
+  const res = await fetch(`/api/companies/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({home_currency:curr})});
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById('settingsResult').innerHTML = `<div style="color:var(--green);font-size:13px;">✓ Home currency set to ${curr}</div>`;
+    showToast(`Home currency changed to ${curr}`,'success');
+  } else showToast(data.error,'error');
+}
+
+async function recalculateMyExpenses() {
+  const cid = selectedCompany || myCompanyId;
+  if (!cid || cid === 'None') { showToast('No company selected','error'); return; }
+  if (!confirm('Recalculate all receipts with current exchange rates?')) return;
+  const res = await fetch(`/api/companies/${cid}/recalculate`,{method:'POST'});
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById('settingsResult').innerHTML = `<div style="color:var(--green);font-size:13px;">✓ ${data.updated} receipts recalculated to ${data.home_currency}</div>`;
+    showToast(`${data.updated} receipts recalculated`,'success'); loadDashboard();
+  } else showToast(data.error,'error');
 }
 
 // Utilities
