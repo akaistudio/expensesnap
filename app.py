@@ -268,6 +268,52 @@ def login():
 @app.route('/api/logout', methods=['POST'])
 def logout(): session.clear(); return jsonify({"success": True})
 
+@app.route('/forgot-password')
+def forgot_password_page():
+    return render_template_string(FORGOT_PASSWORD_HTML)
+
+@app.route('/api/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.json; email = data.get('email','').strip().lower()
+    if not email: return jsonify({"error": "Email is required"}), 400
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT id, name FROM users WHERE email=%s", (email,))
+    user = cur.fetchone()
+    if not user: conn.close(); return jsonify({"error": "No account found with that email"}), 404
+    token = secrets.token_urlsafe(32)
+    expires = (datetime.now() + __import__('datetime').timedelta(hours=1)).isoformat()
+    cur.execute("""CREATE TABLE IF NOT EXISTS password_resets (
+        token VARCHAR(100) PRIMARY KEY, user_id VARCHAR(100), expires_at VARCHAR(50), used BOOLEAN DEFAULT FALSE)""")
+    cur.execute("DELETE FROM password_resets WHERE user_id=%s", (user['id'],))
+    cur.execute("INSERT INTO password_resets (token, user_id, expires_at) VALUES (%s, %s, %s)", (token, user['id'], expires))
+    conn.commit(); conn.close()
+    reset_url = f"/reset-password?token={token}"
+    return jsonify({"success": True, "reset_url": reset_url, "name": user['name'], "expires": "1 hour"})
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template_string(RESET_PASSWORD_HTML)
+
+@app.route('/api/reset-password', methods=['POST'])
+def do_reset_password():
+    data = request.json; token = data.get('token','').strip(); new_password = data.get('password','')
+    if not token: return jsonify({"error": "Invalid reset link"}), 400
+    if len(new_password) < 6: return jsonify({"error": "Password must be at least 6 characters"}), 400
+    conn = get_db(); cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM password_resets WHERE token=%s AND used=FALSE", (token,))
+    except:
+        conn.close(); return jsonify({"error": "Invalid reset link"}), 400
+    reset = cur.fetchone()
+    if not reset: conn.close(); return jsonify({"error": "Invalid or expired reset link"}), 400
+    from datetime import datetime as dt
+    if dt.fromisoformat(reset['expires_at']) < dt.now():
+        conn.close(); return jsonify({"error": "Reset link has expired. Please request a new one."}), 400
+    cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (hash_password(new_password), reset['user_id']))
+    cur.execute("UPDATE password_resets SET used=TRUE WHERE token=%s", (token,))
+    conn.commit(); conn.close()
+    return jsonify({"success": True})
+
 @app.route('/api/me')
 def get_me():
     if 'user_id' not in session: return jsonify({"logged_in": False}), 401
@@ -631,6 +677,7 @@ font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:24p
 <button type="submit" class="btn">Sign In</button>
 </form>
 <div class="switch">New here? <a href="/register">Create an account</a></div>
+<div class="switch" style="margin-top:10px"><a href="/forgot-password">Forgot password?</a></div>
 </div>
 <script>
 async function handleLogin(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
@@ -694,6 +741,139 @@ password:document.getElementById('password').value,invite_code:document.getEleme
 const data=await res.json();if(data.success){window.location.href='/'}
 else{err.textContent=data.error;err.style.display='block'}}
 catch(e){err.textContent='Connection error';err.style.display='block'}}
+</script></body></html>"""
+
+# ── Forgot Password HTML ───────────────────────────────────────
+FORGOT_PASSWORD_HTML = r"""
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>ExpenseSnap - Forgot Password</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
+--accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B;--radius:16px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+display:flex;align-items:center;justify-content:center}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+padding:48px;width:100%;max-width:420px;margin:20px}
+.logo{font-size:28px;font-weight:700;text-align:center;margin-bottom:8px;
+background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:var(--text2);font-size:14px;margin-bottom:32px}
+label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px;margin-top:16px}
+input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);
+border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+input:focus{border-color:var(--accent)}
+.btn{width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:10px;
+font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;transition:all 0.2s}
+.btn:hover{background:#5A4BD1}
+.switch{text-align:center;margin-top:20px;font-size:13px;color:var(--text2)}
+.switch a{color:var(--accent2);text-decoration:none}
+.error{background:rgba(255,107,107,0.1);color:var(--red);padding:12px;border-radius:10px;font-size:13px;margin-top:16px;display:none}
+.success-box{background:rgba(0,210,160,0.1);border:1px solid rgba(0,210,160,0.3);color:var(--green);
+padding:16px;border-radius:10px;font-size:13px;margin-top:16px;display:none;line-height:1.6}
+.reset-link{background:var(--bg);padding:10px;border-radius:8px;margin-top:10px;word-break:break-all;
+font-family:monospace;font-size:12px;color:var(--accent2);cursor:pointer;border:1px solid var(--border)}
+.reset-link:hover{border-color:var(--accent)}
+</style></head><body>
+<div class="card">
+<div class="logo">ExpenseSnap</div>
+<div class="subtitle">Reset your password</div>
+<div class="error" id="error"></div>
+<div class="success-box" id="success">
+<div id="successMsg"></div>
+<div class="reset-link" id="resetLink" onclick="copyLink()" title="Click to copy"></div>
+<div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text2)">Click the link above to copy it, then open it in your browser</div>
+</div>
+<form id="forgotForm" onsubmit="handleForgot(event)">
+<label>Email Address</label><input type="email" id="email" required placeholder="Enter your registered email">
+<button type="submit" class="btn" id="submitBtn">Send Reset Link</button>
+</form>
+<div class="switch"><a href="/login">Back to Sign In</a></div>
+</div>
+<script>
+async function handleForgot(e){e.preventDefault();
+const err=document.getElementById('error');const success=document.getElementById('success');
+err.style.display='none';success.style.display='none';
+const btn=document.getElementById('submitBtn');btn.textContent='Sending...';btn.disabled=true;
+try{const res=await fetch('/api/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({email:document.getElementById('email').value})});
+const data=await res.json();
+if(data.success){
+document.getElementById('forgotForm').style.display='none';
+document.getElementById('successMsg').innerHTML=`Hi <strong>${data.name}</strong>! Your reset link is ready (expires in ${data.expires}):`;
+const fullUrl=window.location.origin+data.reset_url;
+document.getElementById('resetLink').textContent=fullUrl;
+document.getElementById('resetLink').dataset.url=fullUrl;
+success.style.display='block';
+}else{err.textContent=data.error;err.style.display='block'}}
+catch(e){err.textContent='Connection error';err.style.display='block'}
+btn.textContent='Send Reset Link';btn.disabled=false;}
+function copyLink(){const url=document.getElementById('resetLink').dataset.url;
+navigator.clipboard.writeText(url).then(()=>{document.getElementById('resetLink').style.borderColor='var(--green)';
+setTimeout(()=>window.location.href=document.getElementById('resetLink').dataset.url,500)});}
+</script></body></html>"""
+
+# ── Reset Password HTML ────────────────────────────────────────
+RESET_PASSWORD_HTML = r"""
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>ExpenseSnap - New Password</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
+--accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B;--radius:16px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+display:flex;align-items:center;justify-content:center}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+padding:48px;width:100%;max-width:420px;margin:20px}
+.logo{font-size:28px;font-weight:700;text-align:center;margin-bottom:8px;
+background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:var(--text2);font-size:14px;margin-bottom:32px}
+label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px;margin-top:16px}
+input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);
+border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+input:focus{border-color:var(--accent)}
+.btn{width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:10px;
+font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;transition:all 0.2s}
+.btn:hover{background:#5A4BD1}
+.switch{text-align:center;margin-top:20px;font-size:13px;color:var(--text2)}
+.switch a{color:var(--accent2);text-decoration:none}
+.error{background:rgba(255,107,107,0.1);color:var(--red);padding:12px;border-radius:10px;font-size:13px;margin-top:16px;display:none}
+.success-box{background:rgba(0,210,160,0.1);border:1px solid rgba(0,210,160,0.3);color:var(--green);
+padding:16px;border-radius:10px;font-size:14px;margin-top:16px;display:none;text-align:center}
+</style></head><body>
+<div class="card">
+<div class="logo">ExpenseSnap</div>
+<div class="subtitle">Set your new password</div>
+<div class="error" id="error"></div>
+<div class="success-box" id="success">Password updated! Redirecting to login...</div>
+<form id="resetForm" onsubmit="handleReset(event)">
+<label>New Password</label><input type="password" id="password" required placeholder="Minimum 6 characters" minlength="6">
+<label>Confirm Password</label><input type="password" id="confirm" required placeholder="Re-enter password" minlength="6">
+<button type="submit" class="btn" id="submitBtn">Update Password</button>
+</form>
+<div class="switch"><a href="/login">Back to Sign In</a></div>
+</div>
+<script>
+const token=new URLSearchParams(window.location.search).get('token');
+if(!token){document.getElementById('error').textContent='Invalid reset link. Please request a new one.';
+document.getElementById('error').style.display='block';document.getElementById('resetForm').style.display='none';}
+async function handleReset(e){e.preventDefault();
+const err=document.getElementById('error');err.style.display='none';
+const pwd=document.getElementById('password').value;const confirm=document.getElementById('confirm').value;
+if(pwd!==confirm){err.textContent='Passwords do not match';err.style.display='block';return;}
+const btn=document.getElementById('submitBtn');btn.textContent='Updating...';btn.disabled=true;
+try{const res=await fetch('/api/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({token:token,password:pwd})});
+const data=await res.json();
+if(data.success){document.getElementById('resetForm').style.display='none';
+document.getElementById('success').style.display='block';
+setTimeout(()=>window.location.href='/login',2000);}
+else{err.textContent=data.error;err.style.display='block';}}
+catch(e){err.textContent='Connection error';err.style.display='block';}
+btn.textContent='Update Password';btn.disabled=false;}
 </script></body></html>"""
 
 # ── Main App HTML ──────────────────────────────────────────────
