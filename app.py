@@ -20,13 +20,18 @@ import anthropic
 import fitz
 import psycopg2
 from psycopg2.extras import RealDictCursor
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass  # HEIC support optional
 from flask import Flask, request, jsonify, send_file, render_template_string, session, redirect
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://localhost/expensesnap')
 UPLOAD_DIR = Path(__file__).parent / "uploads"
@@ -82,8 +87,8 @@ def is_company_admin(): return session.get('user_role') in ('super_admin', 'comp
 # ── Claude API ─────────────────────────────────────────────────
 def extract_receipt(image_list, media_type="image/jpeg"):
     client = anthropic.Anthropic()
-    prompt = """Analyze this receipt/invoice (may be multiple pages) and extract the following.
-Look across ALL pages for the complete information.
+    prompt = """Analyze this receipt/invoice (may be multiple pages) and extract ALL information.
+Look across ALL pages carefully.
 Return ONLY a valid JSON object with these exact keys:
 {
   "date": "YYYY-MM-DD format, or empty string if not found",
@@ -92,10 +97,14 @@ Return ONLY a valid JSON object with these exact keys:
   "category": "One of: Food & Dining, Groceries, Air Travel, Cab & Rideshare, Hotel & Accommodation, Shopping & Retail, Utilities, Entertainment, Office & Business, Healthcare, Fuel & Parking, Other",
   "subtotal": 0.00, "tax": 0.00, "tip": 0.00, "total": 0.00,
   "payment_method": "e.g. Visa ****1234, Cash, etc.",
-  "currency": "e.g. CAD, USD, EUR, INR",
-  "items": "Comma-separated list of items"
+  "currency": "3-letter code e.g. CAD, USD, EUR, INR, GBP",
+  "items": "List EVERY line item with its price. Format: 'Item Name (price), Item Name (price), ...'. Include quantities if shown. Example: '2x Cappuccino (6.00), Caesar Salad (12.50), Garlic Bread (5.00)'. Do NOT just show the total — list each item separately."
 }
-Use 0.00 for missing amounts. Return ONLY JSON."""
+IMPORTANT:
+- List ALL individual items in the items field, not just the total
+- For tax: include the full tax amount. If multiple taxes (VAT, GST, CGST, SGST, service charge), add them all together
+- Use 0.00 for missing amounts
+- Return ONLY JSON, no other text."""
     content = []
     if isinstance(image_list, list):
         for img_bytes, mt in image_list:
@@ -315,8 +324,39 @@ def reset_password(user_id):
 def upload_receipt():
     if 'receipt' not in request.files: return jsonify({"error": "No file uploaded"}), 400
     file = request.files['receipt']
-    ext_map = {'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif','.heic':'image/png','.pdf':'application/pdf'}
+    ext_map = {'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif','.heic':'image/heic','.heif':'image/heic','.pdf':'application/pdf'}
     ext = Path(file.filename).suffix.lower(); media_type = ext_map.get(ext, 'image/jpeg'); image_bytes = file.read()
+
+    # Convert HEIC to JPEG using Pillow
+    if ext in ('.heic', '.heif'):
+        try:
+            from PIL import Image
+            img = Image.open(BytesIO(image_bytes))
+            buf = BytesIO()
+            img.convert('RGB').save(buf, format='JPEG', quality=85)
+            image_bytes = buf.getvalue()
+            media_type = 'image/jpeg'
+            ext = '.jpg'
+        except Exception as e:
+            return jsonify({"error": f"Failed to convert HEIC: {str(e)}"}), 400
+
+    # Compress large images (over 1.5MB) to reduce size
+    if ext not in ('.pdf',) and len(image_bytes) > 1.5 * 1024 * 1024:
+        try:
+            from PIL import Image
+            img = Image.open(BytesIO(image_bytes))
+            # Resize if very large dimensions
+            max_dim = 2000
+            if max(img.size) > max_dim:
+                img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+            buf = BytesIO()
+            img.convert('RGB').save(buf, format='JPEG', quality=80)
+            image_bytes = buf.getvalue()
+            media_type = 'image/jpeg'
+            ext = '.jpg'
+        except Exception as e:
+            pass  # If compression fails, try with original
+
     if ext == '.pdf':
         try:
             pdf_doc = fitz.open(stream=image_bytes, filetype="pdf"); page_images = []
@@ -392,7 +432,8 @@ def dashboard_data():
         month = e['date'][:7] if e['date'] else 'Unknown'; by_month[month] = by_month.get(month, 0) + float(e['total'] or 0)
         user = e.get('uploaded_by', 'unknown'); by_user[user] = by_user.get(user, 0) + float(e['total'] or 0)
     return jsonify({"total": total, "count": len(expenses), "by_category": by_category,
-                    "by_month": dict(sorted(by_month.items())), "by_user": by_user, "recent": expenses[:10]})
+                    "by_month": dict(sorted(by_month.items())), "by_user": by_user, "recent": expenses[:10],
+                    "currency": expenses[0]['currency'] if expenses else 'USD'})
 
 @app.route('/api/export')
 @login_required
@@ -823,17 +864,17 @@ async function loadDashboard() {
     if (res.status===401) { window.location.href='/login'; return; }
     const data = await res.json();
     document.getElementById('statsGrid').innerHTML = `
-      <div class="stat-card"><div class="stat-label">Total Spent</div><div class="stat-value green">$${data.total.toFixed(2)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Spent</div><div class="stat-value green">${data.currency} ${data.total.toFixed(2)}</div></div>
       <div class="stat-card"><div class="stat-label">Receipts</div><div class="stat-value">${data.count}</div></div>
       <div class="stat-card"><div class="stat-label">Categories</div><div class="stat-value">${Object.keys(data.by_category).length}</div></div>
-      <div class="stat-card"><div class="stat-label">Avg per Receipt</div><div class="stat-value">$${data.count?(data.total/data.count).toFixed(2):'0.00'}</div></div>`;
+      <div class="stat-card"><div class="stat-label">Avg per Receipt</div><div class="stat-value">${data.currency} ${data.count?(data.total/data.count).toFixed(2):'0.00'}</div></div>`;
     const cats = Object.entries(data.by_category).sort((a,b)=>b[1]-a[1]);
     const maxVal = cats.length ? cats[0][1] : 1;
     const colors = ['#6C5CE7','#00D2A0','#FDCB6E','#74B9FF','#FF6B6B','#A29BFE','#FD79A8','#55E6C1'];
     document.getElementById('catBars').innerHTML = cats.length ? cats.map(([cat,amt],i) => `
       <div class="cat-row"><div class="cat-name">${cat}</div>
       <div class="cat-bar-bg"><div class="cat-bar" style="width:${amt/maxVal*100}%;background:${colors[i%colors.length]};"></div></div>
-      <div class="cat-amount">$${amt.toFixed(2)}</div></div>`).join('') : '<div class="empty-state"><p>No expenses yet</p></div>';
+      <div class="cat-amount">${data.currency} ${amt.toFixed(2)}</div></div>`).join('') : '<div class="empty-state"><p>No expenses yet</p></div>';
   } catch(e) { console.error(e); }
 }
 
@@ -932,7 +973,7 @@ async function loadCompanies() {
     <div><div class="company-info"><h4>${c.name}</h4></div>
     <div class="company-stats">${c.user_count} users · ${c.expense_count} receipts</div></div>
     <div style="display:flex;align-items:center;gap:16px;">
-    <div class="company-total">$${c.total_spent.toFixed(2)}</div>
+    <div class="company-total">${c.total_spent.toFixed(2)}</div>
     <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}','${c.name}')">Delete</button></div>
     </div>`).join('') || '<div class="empty-state"><p>No companies yet. Create one above!</p></div>';
 }
