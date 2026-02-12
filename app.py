@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from io import BytesIO
 from functools import wraps
+from urllib.request import urlopen
 
 import anthropic
 import fitz
@@ -48,6 +49,7 @@ def init_db():
     cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS companies (
         id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL,
+        home_currency VARCHAR(10) DEFAULT 'USD',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL,
@@ -59,6 +61,7 @@ def init_db():
         location VARCHAR(255), category VARCHAR(100),
         subtotal DOUBLE PRECISION DEFAULT 0, tax DOUBLE PRECISION DEFAULT 0,
         tip DOUBLE PRECISION DEFAULT 0, total DOUBLE PRECISION DEFAULT 0,
+        total_home DOUBLE PRECISION DEFAULT 0, total_usd DOUBLE PRECISION DEFAULT 0,
         payment_method VARCHAR(100), currency VARCHAR(10) DEFAULT 'USD',
         items TEXT, uploaded_by VARCHAR(255) DEFAULT 'default',
         company_id VARCHAR(36), receipt_image VARCHAR(255),
@@ -68,10 +71,58 @@ def init_db():
         role VARCHAR(50) DEFAULT 'member', created_by VARCHAR(36),
         used_by VARCHAR(36), used_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    # Add columns if upgrading from older version
+    for col, tbl, default in [
+        ('home_currency', 'companies', "'USD'"),
+        ('total_home', 'expenses', '0'),
+        ('total_usd', 'expenses', '0'),
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {'VARCHAR(10)' if 'currency' in col else 'DOUBLE PRECISION'} DEFAULT {default}")
+        except Exception:
+            conn.rollback()
     conn.commit(); cur.close(); conn.close()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+# ── Currency Conversion ────────────────────────────────────────
+_rate_cache = {}
+_rate_cache_time = None
+
+def get_exchange_rates():
+    """Fetch exchange rates from free API, cache for 1 hour"""
+    global _rate_cache, _rate_cache_time
+    if _rate_cache and _rate_cache_time and (datetime.now() - _rate_cache_time).seconds < 3600:
+        return _rate_cache
+    try:
+        url = "https://api.exchangerate-data.com/latest?base=USD"
+        # Try free API
+        try:
+            response = urlopen("https://open.er-api.com/v6/latest/USD", timeout=5)
+            data = json.loads(response.read())
+            _rate_cache = data.get('rates', {})
+        except Exception:
+            # Fallback rates if API is down
+            _rate_cache = {'USD':1,'CAD':1.36,'EUR':0.92,'GBP':0.79,'INR':83.5,'AUD':1.53,'JPY':149.5,'CHF':0.88,'SGD':1.34,'AED':3.67}
+        _rate_cache_time = datetime.now()
+    except Exception:
+        if not _rate_cache:
+            _rate_cache = {'USD':1,'CAD':1.36,'EUR':0.92,'GBP':0.79,'INR':83.5,'AUD':1.53,'JPY':149.5,'CHF':0.88,'SGD':1.34,'AED':3.67}
+    return _rate_cache
+
+def convert_currency(amount, from_curr, to_curr):
+    """Convert amount between currencies"""
+    if from_curr == to_curr or amount == 0:
+        return round(amount, 2)
+    rates = get_exchange_rates()
+    from_curr = from_curr.upper()
+    to_curr = to_curr.upper()
+    # Convert to USD first, then to target
+    from_rate = rates.get(from_curr, 1)
+    to_rate = rates.get(to_curr, 1)
+    usd_amount = amount / from_rate
+    return round(usd_amount * to_rate, 2)
 
 def login_required(f):
     @wraps(f)
@@ -242,13 +293,14 @@ def list_companies():
 def create_company():
     if not is_super_admin(): return jsonify({"error": "Super admin only"}), 403
     name = request.json.get('name','').strip()
+    home_currency = request.json.get('home_currency','USD').strip().upper()
     if not name: return jsonify({"error": "Company name required"}), 400
     company_id = str(uuid.uuid4())[:8]; code = secrets.token_urlsafe(8)
     conn = get_db(); cur = conn.cursor()
-    cur.execute("INSERT INTO companies (id,name) VALUES (%s,%s)", (company_id, name))
+    cur.execute("INSERT INTO companies (id,name,home_currency) VALUES (%s,%s,%s)", (company_id, name, home_currency))
     cur.execute("INSERT INTO invite_codes (code,company_id,role,created_by) VALUES (%s,%s,%s,%s)", (code, company_id, 'company_admin', session['user_id']))
     conn.commit(); conn.close()
-    return jsonify({"success": True, "company_id": company_id, "admin_invite_code": code, "message": f"Company '{name}' created! Admin invite: {code}"})
+    return jsonify({"success": True, "company_id": company_id, "admin_invite_code": code, "message": f"Company '{name}' created! Currency: {home_currency}. Admin invite: {code}"})
 
 @app.route('/api/companies/<company_id>', methods=['DELETE'])
 @login_required
@@ -375,13 +427,25 @@ def upload_receipt():
         except Exception as e: return jsonify({"error": f"Failed to extract: {str(e)}"}), 500
     expense_id = str(uuid.uuid4()); company_id = session.get('company_id'); uploader = session.get('user_name', 'unknown')
     conn = get_db(); cur = conn.cursor()
-    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,payment_method,currency,items,uploaded_by,company_id,receipt_image)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+    # Get company home currency for conversion
+    bill_currency = data.get('currency','USD').upper()
+    home_currency = 'USD'
+    if company_id:
+        cur.execute("SELECT home_currency FROM companies WHERE id=%s", (company_id,))
+        comp = cur.fetchone()
+        if comp: home_currency = comp.get('home_currency','USD') or 'USD'
+    total = float(data.get('total',0))
+    total_home = convert_currency(total, bill_currency, home_currency)
+    total_usd = convert_currency(total, bill_currency, 'USD')
+    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,payment_method,currency,items,uploaded_by,company_id,receipt_image)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                  (expense_id, data.get('date',''), data.get('vendor',''), data.get('location',''),
                   data.get('category',''), data.get('subtotal',0), data.get('tax',0), data.get('tip',0),
-                  data.get('total',0), data.get('payment_method',''), data.get('currency',''),
+                  total, total_home, total_usd, data.get('payment_method',''), bill_currency,
                   data.get('items',''), uploader, company_id, f"{img_id}{'.png' if ext=='.pdf' else ext}"))
-    conn.commit(); conn.close(); data['id'] = expense_id; data['uploaded_by'] = uploader
+    conn.commit(); conn.close()
+    data['id'] = expense_id; data['uploaded_by'] = uploader
+    data['total_home'] = total_home; data['total_usd'] = total_usd; data['home_currency'] = home_currency
     return jsonify({"success": True, "expense": data})
 
 @app.route('/api/expenses')
@@ -425,15 +489,26 @@ def dashboard_data():
         else: cur.execute("SELECT * FROM expenses ORDER BY date DESC")
     else: cur.execute("SELECT * FROM expenses WHERE company_id=%s ORDER BY date DESC", (session.get('company_id'),))
     expenses = [dict(r) for r in cur.fetchall()]; conn.close()
-    total = sum(float(e['total'] or 0) for e in expenses)
+    total_bill = sum(float(e['total'] or 0) for e in expenses)
+    total_home = sum(float(e.get('total_home') or e['total'] or 0) for e in expenses)
+    total_usd = sum(float(e.get('total_usd') or e['total'] or 0) for e in expenses)
+    # Get home currency
+    home_currency = 'USD'
+    if expenses and expenses[0].get('company_id'):
+        try:
+            c2 = get_db(); cur2 = c2.cursor()
+            cur2.execute("SELECT home_currency FROM companies WHERE id=%s", (expenses[0]['company_id'],))
+            comp = cur2.fetchone(); c2.close()
+            if comp: home_currency = comp.get('home_currency','USD') or 'USD'
+        except: pass
     by_category, by_month, by_user = {}, {}, {}
     for e in expenses:
         cat = e['category'] or 'Other'; by_category[cat] = by_category.get(cat, 0) + float(e['total'] or 0)
         month = e['date'][:7] if e['date'] else 'Unknown'; by_month[month] = by_month.get(month, 0) + float(e['total'] or 0)
         user = e.get('uploaded_by', 'unknown'); by_user[user] = by_user.get(user, 0) + float(e['total'] or 0)
-    return jsonify({"total": total, "count": len(expenses), "by_category": by_category,
-                    "by_month": dict(sorted(by_month.items())), "by_user": by_user, "recent": expenses[:10],
-                    "currency": expenses[0]['currency'] if expenses else 'USD'})
+    return jsonify({"total": total_bill, "total_home": total_home, "total_usd": total_usd,
+                    "home_currency": home_currency, "count": len(expenses), "by_category": by_category,
+                    "by_month": dict(sorted(by_month.items())), "by_user": by_user, "recent": expenses[:10]})
 
 @app.route('/api/export')
 @login_required
@@ -760,6 +835,12 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
 <input type="text" id="newCompanyName" placeholder="Company name" style="flex:1;min-width:200px;padding:12px 16px;
 background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none">
+<select id="newCompanyCurrency" style="padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none">
+<option value="USD">USD $</option><option value="EUR">EUR €</option><option value="GBP">GBP £</option>
+<option value="INR">INR ₹</option><option value="CAD">CAD $</option><option value="AUD">AUD $</option>
+<option value="SGD">SGD $</option><option value="AED">AED</option><option value="JPY">JPY ¥</option>
+<option value="CHF">CHF</option><option value="CNY">CNY ¥</option><option value="MXN">MXN $</option>
+</select>
 <button class="btn btn-primary" onclick="createCompany()">+ Create Company</button>
 </div>
 <div id="companyResult" style="margin-top:16px;"></div>
@@ -864,17 +945,17 @@ async function loadDashboard() {
     if (res.status===401) { window.location.href='/login'; return; }
     const data = await res.json();
     document.getElementById('statsGrid').innerHTML = `
-      <div class="stat-card"><div class="stat-label">Total Spent</div><div class="stat-value green">${data.currency} ${data.total.toFixed(2)}</div></div>
-      <div class="stat-card"><div class="stat-label">Receipts</div><div class="stat-value">${data.count}</div></div>
-      <div class="stat-card"><div class="stat-label">Categories</div><div class="stat-value">${Object.keys(data.by_category).length}</div></div>
-      <div class="stat-card"><div class="stat-label">Avg per Receipt</div><div class="stat-value">${data.currency} ${data.count?(data.total/data.count).toFixed(2):'0.00'}</div></div>`;
+      <div class="stat-card"><div class="stat-label">Bill Total</div><div class="stat-value green">${data.total.toFixed(2)}</div><div style="color:var(--text2);font-size:12px;margin-top:4px">Original currencies</div></div>
+      <div class="stat-card"><div class="stat-label">Home Currency</div><div class="stat-value" style="color:var(--accent2)">${data.home_currency} ${data.total_home.toFixed(2)}</div><div style="color:var(--text2);font-size:12px;margin-top:4px">Converted total</div></div>
+      <div class="stat-card"><div class="stat-label">USD Total</div><div class="stat-value" style="color:#FFD93D">USD ${data.total_usd.toFixed(2)}</div><div style="color:var(--text2);font-size:12px;margin-top:4px">Global currency</div></div>
+      <div class="stat-card"><div class="stat-label">Receipts</div><div class="stat-value">${data.count}</div><div style="color:var(--text2);font-size:12px;margin-top:4px">${Object.keys(data.by_category).length} categories</div></div>`;
     const cats = Object.entries(data.by_category).sort((a,b)=>b[1]-a[1]);
     const maxVal = cats.length ? cats[0][1] : 1;
     const colors = ['#6C5CE7','#00D2A0','#FDCB6E','#74B9FF','#FF6B6B','#A29BFE','#FD79A8','#55E6C1'];
     document.getElementById('catBars').innerHTML = cats.length ? cats.map(([cat,amt],i) => `
       <div class="cat-row"><div class="cat-name">${cat}</div>
       <div class="cat-bar-bg"><div class="cat-bar" style="width:${amt/maxVal*100}%;background:${colors[i%colors.length]};"></div></div>
-      <div class="cat-amount">${data.currency} ${amt.toFixed(2)}</div></div>`).join('') : '<div class="empty-state"><p>No expenses yet</p></div>';
+      <div class="cat-amount">${data.home_currency} ${amt.toFixed(2)}</div></div>`).join('') : '<div class="empty-state"><p>No expenses yet</p></div>';
   } catch(e) { console.error(e); }
 }
 
@@ -971,22 +1052,23 @@ async function loadCompanies() {
   document.getElementById('companyList').innerHTML = companies.map(c => `
     <div class="company-card">
     <div><div class="company-info"><h4>${c.name}</h4></div>
-    <div class="company-stats">${c.user_count} users · ${c.expense_count} receipts</div></div>
+    <div class="company-stats">${c.user_count} users · ${c.expense_count} receipts · ${c.home_currency||'USD'}</div></div>
     <div style="display:flex;align-items:center;gap:16px;">
-    <div class="company-total">${c.total_spent.toFixed(2)}</div>
+    <div class="company-total">${c.home_currency||'USD'} ${c.total_spent.toFixed(2)}</div>
     <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}','${c.name}')">Delete</button></div>
     </div>`).join('') || '<div class="empty-state"><p>No companies yet. Create one above!</p></div>';
 }
 
 async function createCompany() {
   const name = document.getElementById('newCompanyName').value.trim();
+  const home_currency = document.getElementById('newCompanyCurrency').value;
   if (!name) { showToast('Enter a company name','error'); return; }
-  const res = await fetch('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const res = await fetch('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, home_currency})});
   const data = await res.json();
   if (data.success) {
     document.getElementById('companyResult').innerHTML = `
       <div style="background:rgba(0,210,160,0.1);padding:16px;border-radius:10px;">
-      <div style="font-size:13px;color:var(--green);margin-bottom:8px;">✓ Company "${name}" created!</div>
+      <div style="font-size:13px;color:var(--green);margin-bottom:8px;">✓ Company "${name}" created! (${home_currency})</div>
       <div style="margin-bottom:4px;">Admin invite code:</div>
       <div class="invite-code" style="font-size:18px;">${data.admin_invite_code}</div>
       <div style="font-size:12px;color:var(--text2);margin-top:8px;">Send this to the company's main person. They'll register and become the admin.</div></div>`;
