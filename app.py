@@ -1434,6 +1434,34 @@ function showToast(msg,type='success') {
 
 init_db()
 
+# --- External API for FinanceSnap ---
+@app.route('/api/expenses/external')
+def api_expenses_external():
+    api_key = request.headers.get('X-API-Key', '')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE email=%s", (api_key,))
+    user = cur.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Invalid API key'}), 401
+    cid = user['company_id']
+    if cid:
+        cur.execute("SELECT * FROM expenses WHERE company_id=%s ORDER BY date DESC", (cid,))
+    else:
+        cur.execute("SELECT * FROM expenses ORDER BY date DESC LIMIT 100")
+    rows = cur.fetchall()
+    conn.close()
+    expenses = []
+    for r in rows:
+        d = dict(r)
+        for k, v in d.items():
+            if hasattr(v, 'isoformat'):
+                d[k] = v.isoformat()
+        expenses.append(d)
+    return jsonify({'expenses': expenses, 'count': len(expenses)})
+
 if __name__ == '__main__':
     print("\n" + "="*50)
     print("  🧾 ExpenseSnap is running!")
