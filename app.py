@@ -1467,6 +1467,38 @@ def api_expenses_external():
         expenses.append(d)
     return jsonify({'expenses': expenses, 'count': len(expenses)})
 
+@app.route('/api/companies/external')
+def api_companies_external():
+    api_key = request.headers.get('X-API-Key', '')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE email=%s", (api_key,))
+    user = cur.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Invalid API key'}), 401
+    if user['role'] != 'super_admin':
+        conn.close()
+        return jsonify({'error': 'Admin only'}), 403
+
+    cur.execute("""SELECT c.*,
+        COUNT(e.id) as receipt_count,
+        COALESCE(SUM(e.total), 0) as total_expenses,
+        (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id) as user_count
+        FROM companies c LEFT JOIN expenses e ON c.id = e.company_id
+        GROUP BY c.id ORDER BY c.name""")
+    companies = cur.fetchall()
+    conn.close()
+    result = []
+    for c in companies:
+        d = dict(c)
+        for k, v in d.items():
+            if hasattr(v, 'isoformat'):
+                d[k] = v.isoformat()
+        result.append(d)
+    return jsonify({'companies': result, 'count': len(result)})
+
 if __name__ == '__main__':
     print("\n" + "="*50)
     print("  🧾 ExpenseSnap is running!")
