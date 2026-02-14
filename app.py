@@ -11,6 +11,7 @@ Roles:
 """
 
 import os, json, base64, uuid, hashlib, secrets
+import requests as http_requests
 from datetime import datetime, timedelta
 from pathlib import Path
 from io import BytesIO
@@ -85,6 +86,16 @@ def init_db():
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+def register_with_hub(company_name, email, currency):
+    hub = os.environ.get('FINANCESNAP_URL', 'https://financesnap.up.railway.app')
+    try:
+        http_requests.post(f'{hub}/api/register-company', json={
+            'app_name': 'ExpenseSnap', 'company_name': company_name,
+            'email': email, 'currency': currency,
+            'app_url': 'https://expensesnap.up.railway.app'
+        }, timeout=5)
+    except: pass
 
 # ── Currency Conversion ────────────────────────────────────────
 _rate_cache = {}
@@ -346,6 +357,14 @@ def create_company():
     cur.execute("INSERT INTO companies (id,name,home_currency) VALUES (%s,%s,%s)", (company_id, name, home_currency))
     cur.execute("INSERT INTO invite_codes (code,company_id,role,created_by) VALUES (%s,%s,%s,%s)", (code, company_id, 'company_admin', session['user_id']))
     conn.commit(); conn.close()
+    # Register with FinanceSnap hub
+    email = session.get('user_email', '')
+    if not email:
+        c2 = get_db(); cr2 = c2.cursor()
+        cr2.execute("SELECT email FROM users WHERE id=%s", (session.get('user_id',''),))
+        u = cr2.fetchone(); c2.close()
+        if u: email = u['email']
+    register_with_hub(name, email, home_currency)
     return jsonify({"success": True, "company_id": company_id, "admin_invite_code": code, "message": f"Company '{name}' created! Currency: {home_currency}. Admin invite: {code}"})
 
 @app.route('/api/companies/<company_id>', methods=['DELETE'])
