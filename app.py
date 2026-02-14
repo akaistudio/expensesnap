@@ -1447,15 +1447,19 @@ def api_expenses_external():
         conn.close()
         return jsonify({'error': 'Invalid API key'}), 401
 
-    # Super admin gets ALL expenses across all companies
+    company_id = request.args.get('company_id', '')
+
     if user['role'] == 'super_admin':
-        cur.execute("SELECT e.*, c.name as company_name FROM expenses e LEFT JOIN companies c ON e.company_id=c.id ORDER BY e.date DESC")
-    else:
-        cid = user['company_id']
-        if cid:
-            cur.execute("SELECT e.*, c.name as company_name FROM expenses e LEFT JOIN companies c ON e.company_id=c.id WHERE e.company_id=%s ORDER BY e.date DESC", (cid,))
+        if company_id:
+            cur.execute("SELECT e.*, c.name as company_name, c.home_currency FROM expenses e LEFT JOIN companies c ON e.company_id=c.id WHERE e.company_id=%s ORDER BY e.date DESC", (company_id,))
         else:
-            cur.execute("SELECT e.*, c.name as company_name FROM expenses e LEFT JOIN companies c ON e.company_id=c.id ORDER BY e.date DESC LIMIT 100")
+            cur.execute("SELECT e.*, c.name as company_name, c.home_currency FROM expenses e LEFT JOIN companies c ON e.company_id=c.id ORDER BY e.date DESC")
+    else:
+        cid = company_id or user['company_id']
+        if cid:
+            cur.execute("SELECT e.*, c.name as company_name, c.home_currency FROM expenses e LEFT JOIN companies c ON e.company_id=c.id WHERE e.company_id=%s ORDER BY e.date DESC", (cid,))
+        else:
+            cur.execute("SELECT e.*, c.name as company_name, c.home_currency FROM expenses e LEFT JOIN companies c ON e.company_id=c.id ORDER BY e.date DESC LIMIT 100")
     rows = cur.fetchall()
     conn.close()
     expenses = []
