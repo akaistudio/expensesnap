@@ -357,7 +357,7 @@ def create_company():
     cur.execute("INSERT INTO companies (id,name,home_currency) VALUES (%s,%s,%s)", (company_id, name, home_currency))
     cur.execute("INSERT INTO invite_codes (code,company_id,role,created_by) VALUES (%s,%s,%s,%s)", (code, company_id, 'company_admin', session['user_id']))
     conn.commit(); conn.close()
-    # Register with FinanceSnap hub
+    # Register with SnapSuite hub
     email = session.get('user_email', '')
     if not email:
         c2 = get_db(); cr2 = c2.cursor()
@@ -1454,7 +1454,7 @@ function showToast(msg,type='success') {
 
 init_db()
 
-# --- External API for FinanceSnap ---
+# --- External API for SnapSuite ---
 @app.route('/api/expenses/external')
 def api_expenses_external():
     api_key = request.headers.get('X-API-Key', '')
