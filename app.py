@@ -88,7 +88,7 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def register_with_hub(company_name, email, currency):
-    hub = os.environ.get('FINANCESNAP_URL', 'https://financesnap.up.railway.app')
+    hub = os.environ.get('FINANCESNAP_URL', 'https://snapsuite.up.railway.app')
     try:
         http_requests.post(f'{hub}/api/register-company', json={
             'app_name': 'ExpenseSnap', 'company_name': company_name,
@@ -1032,7 +1032,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div class="topbar">
 <div class="logo">Expense<span>Snap</span></div>
 <div class="topbar-right">
-<a href="https://financesnap.up.railway.app" target="_blank" style="font-size:12px;color:#8B95B0;text-decoration:none;padding:6px 12px;border:1px solid #2A3148;border-radius:6px;font-weight:600">← SnapSuite</a>
+<a href="https://snapsuite.up.railway.app" target="_blank" style="font-size:12px;color:#8B95B0;text-decoration:none;padding:6px 12px;border:1px solid #2A3148;border-radius:6px;font-weight:600">← SnapSuite</a>
 <span class="company-badge">{{ company_name }}</span>
 <div class="user-badge">👤 <strong>{{ user_name }}</strong></div>
 <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📥 Export</button>
