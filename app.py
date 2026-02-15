@@ -1574,3 +1574,54 @@ def seed_test_data():
                    (f'seed-{eid}',e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[7],e[8],e[9],e[10],e[11],e[12],user['id'],company_id))
     conn.commit(); conn.close()
     return jsonify({'success': True, 'company': 'Bloom Studio', 'expenses': len(expenses)})
+
+# --- Demo Setup ---
+@app.route('/api/demo-setup', methods=['POST'])
+def demo_setup():
+    secret = request.headers.get('X-Demo-Secret', '')
+    if secret != 'snapsuite-demo-2026': return jsonify({'error': 'Unauthorized'}), 403
+    import uuid
+    conn = get_db(); cur = conn.cursor()
+    demo_email = 'demo@snapsuite.app'
+    cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
+    user = cur.fetchone()
+    if not user:
+        uid = str(uuid.uuid4())[:8]
+        cur.execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (%s,%s,%s,%s,%s)",
+                   (uid, 'Demo User', demo_email, hash_password('demo123'), 'super_admin'))
+        conn.commit()
+        cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
+        user = cur.fetchone()
+    # Create Bloom Studio company
+    cid = 'bloom-demo'
+    cur.execute("SELECT * FROM companies WHERE id=%s", (cid,))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO companies (id, name, home_currency) VALUES (%s, %s, %s)", (cid, 'Bloom Studio', 'INR'))
+    # Seed expenses
+    cur.execute("SELECT COUNT(*) as cnt FROM expenses WHERE company_id=%s", (cid,))
+    if cur.fetchone()['cnt'] == 0:
+        expenses = [
+            ('2026-01-05','Adobe Creative Cloud','Online','Software',5900,0,5900,'Credit Card','INR'),
+            ('2026-01-08','Starbucks Reserve','Bangalore','Meals & Entertainment',399,19,399,'UPI','INR'),
+            ('2026-01-12','Amazon Web Services','Online','Cloud & Hosting',12400,0,12400,'Credit Card','INR'),
+            ('2026-01-15','Uber','Bangalore','Travel',340,0,340,'UPI','INR'),
+            ('2026-01-18','Reliance Digital','Bangalore','Equipment',49560,7560,49560,'Credit Card','INR'),
+            ('2026-01-22','WeWork','Bangalore','Office & Rent',25000,0,25000,'Bank Transfer','INR'),
+            ('2026-01-25','Swiggy','Bangalore','Meals & Entertainment',650,0,650,'UPI','INR'),
+            ('2026-02-01','Google Workspace','Online','Software',1500,0,1500,'Credit Card','INR'),
+            ('2026-02-03','Figma','Online','Software',1200,0,1200,'Credit Card','INR'),
+            ('2026-02-05','IndiGo Airlines','Travel','Travel',4956,756,4956,'Credit Card','INR'),
+            ('2026-02-07','Taj Hotel Mumbai','Mumbai','Travel',10030,1530,10030,'Credit Card','INR'),
+            ('2026-02-10','Zerodha','Online','Professional Services',200,0,200,'UPI','INR'),
+            ('2026-02-12','Canva Pro','Online','Software',3500,0,3500,'Credit Card','INR'),
+            ('2026-02-14','BigBasket','Bangalore','Office Supplies',850,0,850,'UPI','INR'),
+            ('2026-02-14','Notion','Online','Software',800,0,800,'Credit Card','INR'),
+        ]
+        for e in expenses:
+            eid = str(uuid.uuid4())[:8]
+            cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,total,total_home,total_usd,
+                           payment_method,currency,items,uploaded_by,company_id)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       (f'demo-{eid}',e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[6],round(e[6]/84,2),e[7],e[8],'',user['id'],cid))
+    conn.commit(); conn.close()
+    return jsonify({'success': True, 'app': 'ExpenseSnap'})
