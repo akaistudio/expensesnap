@@ -220,6 +220,17 @@ def generate_excel(expenses, company_name=""):
     buf = BytesIO(); wb.save(buf); buf.seek(0); return buf
 
 # ── Auth Routes ────────────────────────────────────────────────
+@app.route('/demo')
+def demo_auto_login():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE email='demo@snapsuite.app'")
+    user = cur.fetchone(); conn.close()
+    if user:
+        session.update({'user_id': user['id'], 'user_name': user['name'], 'user_role': user['role'],
+                        'company_id': user['company_id'], 'company_name': 'All Companies'})
+        return redirect('/')
+    return redirect('/login')
+
 @app.route('/login')
 def login_page():
     if 'user_id' in session: return redirect('/')
