@@ -1531,3 +1531,46 @@ if __name__ == '__main__':
     print(f"  Press Ctrl+C to stop")
     print("="*50 + "\n")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+# --- Seed Test Data ---
+@app.route('/api/seed-test-data', methods=['POST'])
+def seed_test_data():
+    api_key = request.headers.get('X-API-Key', '')
+    if not api_key: return jsonify({'error': 'API key required'}), 401
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE email=%s", (api_key,))
+    user = cur.fetchone()
+    if not user or user['role'] != 'super_admin':
+        conn.close(); return jsonify({'error': 'Super admin only'}), 403
+
+    import uuid
+    cid = str(uuid.uuid4())[:8]
+    company_id = f'bloom-{cid}'
+    cur.execute("INSERT INTO companies (id, name, home_currency) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+               (company_id, 'Bloom Studio', 'INR'))
+
+    expenses = [
+        ('2026-01-05','Adobe Creative Cloud','Online','Software',0,0,0,5900,5900,70,'Credit Card','INR','Adobe CC subscription'),
+        ('2026-01-08','Starbucks Reserve','Bangalore','Meals & Entertainment',380,19,0,399,399,4.75,'UPI','INR','Client meeting coffee'),
+        ('2026-01-12','Amazon Web Services','Online','Cloud & Hosting',0,0,0,12400,12400,148,'Credit Card','INR','Jan server costs'),
+        ('2026-01-15','Uber','Bangalore','Travel',0,0,0,340,340,4,'UPI','INR','Client site visit'),
+        ('2026-01-18','Reliance Digital','Bangalore','Equipment',42000,7560,0,49560,49560,590,'Credit Card','INR','MacBook charger + accessories'),
+        ('2026-01-22','WeWork','Bangalore','Office & Rent',0,0,0,25000,25000,298,'Bank Transfer','INR','Coworking Jan'),
+        ('2026-01-25','Swiggy','Bangalore','Meals & Entertainment',650,0,0,650,650,7.75,'UPI','INR','Team lunch'),
+        ('2026-02-01','Google Workspace','Online','Software',0,0,0,1500,1500,18,'Credit Card','INR','Feb workspace'),
+        ('2026-02-03','Figma','Online','Software',0,0,0,1200,1200,14.30,'Credit Card','INR','Design tool'),
+        ('2026-02-05','IndiGo Airlines','Travel','Travel',4200,756,0,4956,4956,59,'Credit Card','INR','Mumbai client trip'),
+        ('2026-02-07','Taj Hotel Mumbai','Mumbai','Travel',8500,1530,0,10030,10030,119,'Credit Card','INR','Mumbai stay 1 night'),
+        ('2026-02-10','Zerodha','Online','Professional Services',0,0,0,200,200,2.40,'UPI','INR','Brokerage charges'),
+        ('2026-02-12','Canva Pro','Online','Software',0,0,0,3500,3500,42,'Credit Card','INR','Annual plan'),
+        ('2026-02-14','BigBasket','Bangalore','Office Supplies',850,0,0,850,850,10,'UPI','INR','Office pantry supplies'),
+        ('2026-02-14','Notion','Online','Software',0,0,0,800,800,9.50,'Credit Card','INR','Team workspace'),
+    ]
+    for e in expenses:
+        eid = str(uuid.uuid4())[:8]
+        cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,
+                       payment_method,currency,items,uploaded_by,company_id)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                   (f'seed-{eid}',e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[7],e[8],e[9],e[10],e[11],e[12],user['id'],company_id))
+    conn.commit(); conn.close()
+    return jsonify({'success': True, 'company': 'Bloom Studio', 'expenses': len(expenses)})
