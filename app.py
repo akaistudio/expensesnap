@@ -583,6 +583,37 @@ def upload_receipt():
     data['total_home'] = total_home; data['total_usd'] = total_usd; data['home_currency'] = home_currency
     return jsonify({"success": True, "expense": data})
 
+@app.route('/api/expense/manual', methods=['POST'])
+@login_required
+def add_manual_expense():
+    """Add expense manually without a receipt — ideal for payroll, subscriptions, etc."""
+    data = request.json or {}
+    if not data.get('vendor') or not data.get('total'):
+        return jsonify({"error": "Vendor/description and total are required"}), 400
+    expense_id = str(uuid.uuid4())
+    company_id = session.get('company_id')
+    uploader = session.get('user_name', 'unknown')
+    bill_currency = data.get('currency', 'USD').upper()
+    home_currency = 'USD'
+    conn = get_db(); cur = conn.cursor()
+    if company_id:
+        cur.execute("SELECT home_currency FROM companies WHERE id=%s", (company_id,))
+        comp = cur.fetchone()
+        if comp: home_currency = comp.get('home_currency', 'USD') or 'USD'
+    total = float(data.get('total', 0))
+    total_home = convert_currency(total, bill_currency, home_currency)
+    total_usd = convert_currency(total, bill_currency, 'USD')
+    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,payment_method,currency,items,uploaded_by,company_id,receipt_image)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                 (expense_id, data.get('date', ''), data.get('vendor', ''), data.get('location', ''),
+                  data.get('category', 'Other'), float(data.get('subtotal', 0) or total), float(data.get('tax', 0) or 0), 0,
+                  total, total_home, total_usd, data.get('payment_method', 'Bank Transfer'), bill_currency,
+                  data.get('items', ''), uploader, company_id, ''))
+    conn.commit(); conn.close()
+    return jsonify({"success": True, "expense": {"id": expense_id, "vendor": data['vendor'],
+        "total": total, "category": data.get('category', 'Other'), "date": data.get('date', ''),
+        "total_home": total_home, "total_usd": total_usd, "home_currency": home_currency}})
+
 @app.route('/api/expenses')
 @login_required
 def get_expenses():
@@ -1076,6 +1107,68 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div class="upload-sub">Supports JPG, PNG, WebP, HEIC, PDF • Phone camera or album</div>
 <input type="file" class="upload-input" id="fileInput" accept="image/*,.pdf" multiple>
 </div>
+
+<div style="text-align:center;margin:20px 0 12px;color:var(--text2);font-size:13px">— or add manually —</div>
+
+<div class="manual-entry" style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;max-width:500px;margin:0 auto">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+<span style="font-size:20px">✏️</span>
+<span style="font-weight:700;font-size:15px;color:var(--text1)">Manual Entry</span>
+<span style="font-size:12px;color:var(--text2);background:var(--bg);padding:3px 10px;border-radius:20px;margin-left:auto">No receipt needed</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="grid-column:1/-1">
+<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Description / Vendor *</label>
+<input type="text" id="manualVendor" placeholder="e.g. January Payroll — John Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Amount *</label>
+<input type="number" id="manualTotal" placeholder="5000.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Date</label>
+<input type="date" id="manualDate" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Category</label>
+<select id="manualCategory" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+<option value="Payroll & Salary">💰 Payroll & Salary</option>
+<option value="Professional Services">👔 Professional Services</option>
+<option value="Software & Subscriptions">💻 Software & Subscriptions</option>
+<option value="Office & Business">🏢 Office & Business</option>
+<option value="Utilities">⚡ Utilities</option>
+<option value="Food & Dining">🍽 Food & Dining</option>
+<option value="Air Travel">✈️ Air Travel</option>
+<option value="Cab & Rideshare">🚕 Cab & Rideshare</option>
+<option value="Hotel & Accommodation">🏨 Hotel & Accommodation</option>
+<option value="Shopping & Retail">🛍 Shopping & Retail</option>
+<option value="Entertainment">🎬 Entertainment</option>
+<option value="Healthcare">🏥 Healthcare</option>
+<option value="Fuel & Parking">⛽ Fuel & Parking</option>
+<option value="Other">📋 Other</option>
+</select>
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Payment Method</label>
+<select id="manualPayment" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+<option value="Bank Transfer">Bank Transfer</option>
+<option value="Cash">Cash</option>
+<option value="Credit Card">Credit Card</option>
+<option value="Debit Card">Debit Card</option>
+<option value="UPI">UPI</option>
+<option value="Check">Check</option>
+</select>
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Tax (optional)</label>
+<input type="number" id="manualTax" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div style="grid-column:1/-1;text-align:right;margin-top:4px">
+<button onclick="submitManualExpense()" style="padding:10px 24px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Add Expense</button>
+</div>
+</div>
+</div>
+
 <div id="recentUploads" style="margin-top:28px;"></div>
 </div>
 
@@ -1161,6 +1254,9 @@ if (isSuperAdmin) {
   loadCompanyFilter();
 }
 
+// Set default date to today for manual entry
+document.getElementById('manualDate').value = new Date().toISOString().split('T')[0];
+
 function onCompanyFilterChange() {
   selectedCompany = document.getElementById('companyFilter').value;
   // Reload current tab data
@@ -1227,6 +1323,31 @@ function showRecentUpload(exp) {
   <div style="font-size:13px;color:var(--text2);">${exp.date} · ${exp.category} · by ${exp.uploaded_by||''}</div></div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--green);">${exp.currency} ${Number(exp.total).toFixed(2)}</div>`;
   c.prepend(d);
+}
+
+async function submitManualExpense() {
+  const vendor = document.getElementById('manualVendor').value.trim();
+  const total = parseFloat(document.getElementById('manualTotal').value) || 0;
+  if (!vendor || total <= 0) { alert('Please enter a description and amount'); return; }
+  const dateVal = document.getElementById('manualDate').value || new Date().toISOString().split('T')[0];
+  const category = document.getElementById('manualCategory').value;
+  const payment = document.getElementById('manualPayment').value;
+  const tax = parseFloat(document.getElementById('manualTax').value) || 0;
+  const subtotal = total - tax;
+  try {
+    const res = await fetch(apiUrl('/api/expense/manual'), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({vendor, total, date: dateVal, category, payment_method: payment, tax, subtotal})
+    });
+    const data = await res.json();
+    if (data.success) {
+      showRecentUpload({vendor, total, date: dateVal, category, currency: data.expense.home_currency || 'USD', uploaded_by: ''});
+      document.getElementById('manualVendor').value = '';
+      document.getElementById('manualTotal').value = '';
+      document.getElementById('manualTax').value = '';
+      loadDashboard();
+    } else { alert(data.error || 'Failed to add expense'); }
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 // Dashboard
