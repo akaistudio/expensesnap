@@ -156,7 +156,7 @@ Return ONLY a valid JSON object with these exact keys:
   "date": "YYYY-MM-DD format, or empty string if not found",
   "vendor": "Business/restaurant name",
   "location": "City, State/Province or City, Country",
-  "category": "One of: Food & Dining, Groceries, Air Travel, Cab & Rideshare, Hotel & Accommodation, Shopping & Retail, Utilities, Entertainment, Office & Business, Healthcare, Fuel & Parking, Other",
+  "category": "One of: Food & Dining, Groceries, Air Travel, Cab & Rideshare, Hotel & Accommodation, Shopping & Retail, Utilities, Entertainment, Office & Business, Healthcare, Fuel & Parking, Payroll & Salary, Professional Services, Software & Subscriptions, Other",
   "subtotal": 0.00, "tax": 0.00, "tip": 0.00, "total": 0.00,
   "payment_method": "e.g. Visa ****1234, Cash, etc.",
   "currency": "3-letter code e.g. CAD, USD, EUR, INR, GBP",
