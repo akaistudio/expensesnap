@@ -115,11 +115,11 @@ def get_exchange_rates():
             _rate_cache = data.get('rates', {})
         except Exception:
             # Fallback rates if API is down
-            _rate_cache = {'USD':1,'CAD':1.36,'EUR':0.92,'GBP':0.79,'INR':83.5,'AUD':1.53,'JPY':149.5,'CHF':0.88,'SGD':1.34,'AED':3.67}
+            _rate_cache = {'USD':1,'CAD':1.36,'EUR':0.92,'GBP':0.79,'INR':83.5,'AUD':1.53,'JPY':149.5,'CHF':0.88,'SGD':1.34,'AED':3.67,'MYR':4.45}
         _rate_cache_time = datetime.now()
     except Exception:
         if not _rate_cache:
-            _rate_cache = {'USD':1,'CAD':1.36,'EUR':0.92,'GBP':0.79,'INR':83.5,'AUD':1.53,'JPY':149.5,'CHF':0.88,'SGD':1.34,'AED':3.67}
+            _rate_cache = {'USD':1,'CAD':1.36,'EUR':0.92,'GBP':0.79,'INR':83.5,'AUD':1.53,'JPY':149.5,'CHF':0.88,'SGD':1.34,'AED':3.67,'MYR':4.45}
     return _rate_cache
 
 def convert_currency(amount, from_curr, to_curr):
