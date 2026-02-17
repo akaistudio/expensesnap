@@ -167,7 +167,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect('/login') if not request.path.startswith('/api/') else (jsonify({"error": "Not logged in"}), 401)
+            return redirect('/welcome') if not request.path.startswith('/api/') else (jsonify({"error": "Not logged in"}), 401)
         return f(*args, **kwargs)
     return decorated
 
@@ -257,15 +257,15 @@ def demo_auto_login():
         session.update({'user_id': user['id'], 'user_name': user['name'], 'user_role': user['role'],
                         'company_id': user['company_id'], 'company_name': 'All Companies'})
         return redirect('/')
-    return redirect('/login')
+    return redirect('/welcome')
 
-@app.route('/login')
-def login_page():
+@app.route('/welcome')
+def welcome():
     if 'user_id' in session: return redirect('/')
     return render_template_string(LANDING_HTML)
 
-@app.route('/signin')
-def signin_page():
+@app.route('/login')
+def login_page():
     if 'user_id' in session: return redirect('/')
     return render_template_string(LOGIN_HTML)
 
@@ -754,7 +754,7 @@ a{text-decoration:none}
 <h1 style="font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.15;margin-bottom:16px;color:#fff">Snap a receipt.<br><span style="background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Split a trip.</span></h1>
 <p style="font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto">AI-powered receipt scanning for business expenses, plus a Splitwise-style trip splitter for group travel. Multi-currency, multi-country, instant settlements.</p>
 <div>
-<a href="/signin" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:10px;font-size:15px;font-weight:700;margin:0 6px 8px;transition:.2s">Sign In →</a>
+<a href="/login" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:10px;font-size:15px;font-weight:700;margin:0 6px 8px;transition:.2s">Sign In →</a>
 <a href="/register" style="display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;margin:0 6px 8px">Create Account</a>
 <a href="#features" style="display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;margin:0 6px 8px">See Features</a>
 </div>
@@ -797,7 +797,7 @@ a{text-decoration:none}
 </section>
 
 <section style="padding:40px 24px 80px;text-align:center">
-<a href="/signin" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
+<a href="/login" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
 <a href="/register" style="display:inline-block;padding:18px 48px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:12px;font-size:17px;font-weight:600;margin:0 8px 10px">Create Free Account</a>
 <div style="margin-top:20px;font-size:12px;color:var(--text2)">Part of <a href="https://snapsuite.up.railway.app" style="color:var(--accent2)">SnapSuite</a> — 6 apps for your entire business</div>
 </section>
@@ -842,7 +842,7 @@ font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:24p
 </form>
 <div class="switch">New here? <a href="/register">Create an account</a></div>
 <div class="switch" style="margin-top:10px"><a href="/forgot-password">Forgot password?</a></div>
-<div class="suite"><a href="/login">← Back to ExpenseSnap home</a></div>
+<div class="suite"><a href="/welcome">← Back to ExpenseSnap home</a></div>
 </div>
 <script>
 async function handleLogin(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
@@ -890,7 +890,7 @@ input:focus{border-color:var(--accent)}
 <label>Invite Code <span style="color:var(--text2)">(not needed for first user)</span></label>
 <input type="text" id="invite_code" placeholder="Ask your admin for this">
 <button type="submit" class="btn">Create Account</button></form>
-<div class="sw">Already have an account? <a href="/signin">Sign in</a></div></div>
+<div class="sw">Already have an account? <a href="/login">Sign in</a></div></div>
 <div class="suite">Part of <a href="https://snapsuite.up.railway.app">SnapSuite</a> — 6 apps for your entire business</div>
 <script>
 async function handleRegister(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
