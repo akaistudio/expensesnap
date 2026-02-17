@@ -756,8 +756,8 @@ a{text-decoration:none;color:inherit}
 </style></head><body>
 
 <section style="min-height:80vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 24px 40px;position:relative;overflow:hidden">
-<div style="position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(108,92,231,.12),transparent 70%);top:-100px;right:-100px"></div>
-<div style="max-width:720px">
+<div style="position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(108,92,231,.12),transparent 70%);top:-100px;right:-100px;pointer-events:none;z-index:0"></div>
+<div style="max-width:720px;position:relative;z-index:1">
 <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(108,92,231,.1);border:1px solid rgba(108,92,231,.2);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:24px">✦ AI-Powered Expense Tracking</div>
 <h1 style="font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.15;margin-bottom:16px;color:#fff">Snap a receipt.<br><span style="background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Split a trip.</span></h1>
 <p style="font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto">AI-powered receipt scanning for business expenses, plus SplitSnap — a Splitwise-style bill splitter for group travel. Multi-currency, multi-country, instant settlements.</p>
