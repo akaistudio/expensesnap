@@ -262,6 +262,11 @@ def demo_auto_login():
 @app.route('/login')
 def login_page():
     if 'user_id' in session: return redirect('/')
+    return render_template_string(LANDING_HTML)
+
+@app.route('/signin')
+def signin_page():
+    if 'user_id' in session: return redirect('/')
     return render_template_string(LOGIN_HTML)
 
 @app.route('/register')
@@ -729,7 +734,7 @@ def index():
 
 
 # ── Login HTML ─────────────────────────────────────────────────
-LOGIN_HTML = r"""
+LANDING_HTML = r"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>ExpenseSnap — AI Receipt Scanner & Trip Splitter</title>
@@ -739,97 +744,106 @@ LOGIN_HTML = r"""
 --accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B;--teal:#2dd4bf}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
-a{color:var(--accent2);text-decoration:none}
-.hero{min-height:70vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 24px 40px;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(108,92,231,.12),transparent 70%);top:-100px;right:-100px}
-.hero-inner{max-width:720px}
-.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(108,92,231,.1);border:1px solid rgba(108,92,231,.2);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:24px}
-.hero h1{font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.15;margin-bottom:16px;color:#fff}
-.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero p{font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto}
-.bp{display:inline-block;padding:14px 32px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;transition:.2s;margin:0 6px 8px}
-.bp:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(108,92,231,.3)}
-.bg{display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;transition:.2s;margin:0 6px 8px}
-.bg:hover{border-color:var(--accent);color:var(--accent)}
-.modes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px;max-width:500px;margin-left:auto;margin-right:auto}
-.mode{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center}
-.mode .em{font-size:28px;margin-bottom:6px}
-.mode h4{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
-.mode p{font-size:11px;color:var(--text2);line-height:1.4}
-section.ft{padding:60px 24px;max-width:1000px;margin:0 auto}
-.sl{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:12px;text-align:center}
-.st{font-size:28px;font-weight:800;color:#fff;text-align:center;margin-bottom:36px}
-.fg2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
-.fc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px}
-.fc .ic{font-size:26px;margin-bottom:10px}
-.fc h4{font-size:15px;font-weight:700;color:#fff;margin-bottom:6px}
-.fc p{font-size:13px;color:var(--text2);line-height:1.6}
-section.hw{padding:40px 24px 60px;max-width:800px;margin:0 auto}
-.sps{display:flex;flex-direction:column;gap:14px}
-.sp{display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px}
-.sp .nm{min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
-.sp h4{font-size:14px;font-weight:700;color:#fff;margin-bottom:3px}
-.sp p{font-size:13px;color:var(--text2);line-height:1.5}
-.auth{padding:40px 24px 80px;display:flex;flex-direction:column;align-items:center}
-.ac{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:420px}
-.ac h2{font-size:20px;font-weight:700;margin-bottom:20px;color:#fff;text-align:center}
-label{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;margin-top:14px}
-input{width:100%;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:#fff;font-size:14px;font-family:inherit;outline:none}
-input:focus{border-color:var(--accent)}
-.sub{width:100%;padding:14px;border:none;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;margin-top:20px}
-.sub:hover{opacity:.9}
-.sw{text-align:center;margin-top:14px;font-size:14px;color:var(--text2)}.sw a{color:var(--accent2);font-weight:600}
-.err{background:rgba(255,107,107,0.1);color:var(--red);padding:12px;border-radius:10px;font-size:13px;margin-top:14px;display:none}
-.suite{margin-top:20px;font-size:12px;color:var(--text2);text-align:center}
-@media(max-width:600px){.sp{flex-direction:column}.fg2{grid-template-columns:1fr}.modes{grid-template-columns:1fr}}
+a{text-decoration:none}
 </style></head><body>
-<section class="hero"><div class="hero-inner">
-<div class="badge">✦ AI-Powered Expense Tracking</div>
-<h1>Snap a receipt.<br><span>Split a trip.</span></h1>
-<p>AI-powered receipt scanning for business expenses, plus a Splitwise-style trip splitter for group travel. Multi-currency, multi-country, instant settlements.</p>
-<div><a href="#auth" class="bp">Get Started Free →</a><a href="#features" class="bg">See Features</a></div>
-<div class="modes">
-<div class="mode"><div class="em">🏢</div><h4>Business Expenses</h4><p>Scan receipts, manual entry, P&L dashboard, Excel export, team sharing</p></div>
-<div class="mode"><div class="em">✈️</div><h4>Trip Splitter</h4><p>Add friends, scan bills, split in any currency, see who owes whom</p></div>
-</div>
-</div></section>
 
-<section class="ft" id="features">
-<div class="sl">Features</div>
-<div class="st">Two apps in one — business + personal</div>
-<div class="fg2">
-<div class="fc"><div class="ic">📸</div><h4>AI Receipt Scanner</h4><p>Upload any receipt — AI extracts vendor, items, amount, tax, currency, and category in seconds. Works for both business and trip expenses.</p></div>
-<div class="fc"><div class="ic">✂️</div><h4>Trip Expense Splitter</h4><p>Create a trip, add friends, log expenses (scan or manual). Auto-calculates who owes whom with minimum settlements.</p></div>
-<div class="fc"><div class="ic">💱</div><h4>Multi-Currency</h4><p>USD, EUR, GBP, INR, CAD, MYR and more. Trip expenses auto-convert to your chosen base currency for settlements.</p></div>
-<div class="fc"><div class="ic">📊</div><h4>P&L Dashboard</h4><p>Business expenses feed into a live dashboard. Total spend, category breakdown, monthly trends at a glance.</p></div>
-<div class="fc"><div class="ic">✏️</div><h4>Manual Entry</h4><p>No receipt? No problem. Log payroll, subscriptions, and recurring costs manually with category and payment method.</p></div>
-<div class="fc"><div class="ic">👥</div><h4>Team & Companies</h4><p>Invite team members with codes. Multi-company support for agencies. Admin controls and shared expense views.</p></div>
+<section style="min-height:80vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 24px 40px;position:relative;overflow:hidden">
+<div style="position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(108,92,231,.12),transparent 70%);top:-100px;right:-100px"></div>
+<div style="max-width:720px">
+<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(108,92,231,.1);border:1px solid rgba(108,92,231,.2);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:24px">✦ AI-Powered Expense Tracking</div>
+<h1 style="font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.15;margin-bottom:16px;color:#fff">Snap a receipt.<br><span style="background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Split a trip.</span></h1>
+<p style="font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto">AI-powered receipt scanning for business expenses, plus a Splitwise-style trip splitter for group travel. Multi-currency, multi-country, instant settlements.</p>
+<div>
+<a href="/signin" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:10px;font-size:15px;font-weight:700;margin:0 6px 8px;transition:.2s">Sign In →</a>
+<a href="/register" style="display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;margin:0 6px 8px">Create Account</a>
+<a href="#features" style="display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;margin:0 6px 8px">See Features</a>
 </div>
-</section>
-
-<section class="hw" id="demo">
-<div class="sl" style="color:var(--green)">How it works</div>
-<div class="st">Up and running in 60 seconds</div>
-<div class="sps">
-<div class="sp"><div class="nm">1</div><div><h4>Choose your mode</h4><p>Business expenses? Scan receipts and track company costs. Trip with friends? Create a trip and add members.</p></div></div>
-<div class="sp"><div class="nm">2</div><div><h4>Scan or add expenses</h4><p>Upload a photo of any receipt — AI does the rest. Or type it manually. For trips, select who paid and who to split among.</p></div></div>
-<div class="sp"><div class="nm">3</div><div><h4>See the results</h4><p>Business: dashboard shows totals by category, monthly trends, export to Excel. Trips: balance bars, settlement arrows, who pays whom.</p></div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px;max-width:500px;margin-left:auto;margin-right:auto">
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center">
+<div style="font-size:28px;margin-bottom:6px">🏢</div>
+<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Business Expenses</div>
+<div style="font-size:11px;color:var(--text2);line-height:1.4">Scan receipts, manual entry, P&L dashboard, Excel export</div>
+</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center">
+<div style="font-size:28px;margin-bottom:6px">✈️</div>
+<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Trip Splitter</div>
+<div style="font-size:11px;color:var(--text2);line-height:1.4">Add friends, scan bills, split in any currency, who owes whom</div>
+</div>
+</div>
 </div>
 </section>
 
-<section class="auth" id="auth">
-<div class="ac"><h2>Sign In</h2>
-<div class="err" id="error"></div>
+<section id="features" style="padding:60px 24px;max-width:1000px;margin:0 auto">
+<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:12px;text-align:center">Features</div>
+<div style="font-size:28px;font-weight:800;color:#fff;text-align:center;margin-bottom:36px">Two apps in one — business + personal</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📸</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">AI Receipt Scanner</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Upload any receipt — AI extracts vendor, items, amount, tax, currency, and category in seconds. Works for both business and trip expenses.</div></div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">✂️</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Trip Expense Splitter</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Create a trip, add friends, log expenses (scan or manual). Auto-calculates who owes whom with minimum settlements.</div></div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">💱</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Multi-Currency</div><div style="font-size:13px;color:var(--text2);line-height:1.6">USD, EUR, GBP, INR, CAD, MYR and more. Trip expenses auto-convert to your chosen base currency for settlements.</div></div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📊</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">P&L Dashboard</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Business expenses feed into a live dashboard. Total spend, category breakdown, monthly trends at a glance.</div></div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">✏️</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Manual Entry</div><div style="font-size:13px;color:var(--text2);line-height:1.6">No receipt? No problem. Log payroll, subscriptions, and recurring costs manually with category and payment method.</div></div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">👥</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Team & Companies</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Invite team members with codes. Multi-company support for agencies. Admin controls and shared expense views.</div></div>
+</div>
+</section>
+
+<section style="padding:40px 24px 60px;max-width:800px;margin:0 auto">
+<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--green);margin-bottom:12px;text-align:center">How it works</div>
+<div style="font-size:28px;font-weight:800;color:#fff;text-align:center;margin-bottom:32px">Up and running in 60 seconds</div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px"><div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">1</div><div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Choose your mode</div><div style="font-size:13px;color:var(--text2);line-height:1.5">Business expenses? Scan receipts and track company costs. Trip with friends? Create a trip and add members.</div></div></div>
+<div style="display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px"><div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">2</div><div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Scan or add expenses</div><div style="font-size:13px;color:var(--text2);line-height:1.5">Upload a photo of any receipt — AI does the rest. Or type it manually. For trips, select who paid and who to split among.</div></div></div>
+<div style="display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px"><div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">3</div><div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">See the results</div><div style="font-size:13px;color:var(--text2);line-height:1.5">Business: dashboard shows totals by category, monthly trends, export to Excel. Trips: balance bars, settlement arrows, who pays whom.</div></div></div>
+</div>
+</section>
+
+<section style="padding:40px 24px 80px;text-align:center">
+<a href="/signin" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
+<a href="/register" style="display:inline-block;padding:18px 48px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:12px;font-size:17px;font-weight:600;margin:0 8px 10px">Create Free Account</a>
+<div style="margin-top:20px;font-size:12px;color:var(--text2)">Part of <a href="https://snapsuite.up.railway.app" style="color:var(--accent2)">SnapSuite</a> — 6 apps for your entire business</div>
+</section>
+</body></html>"""
+
+LOGIN_HTML = r"""
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>ExpenseSnap - Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
+--accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+display:flex;align-items:center;justify-content:center}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+padding:48px;width:100%;max-width:420px;margin:20px}
+.logo{font-size:28px;font-weight:700;text-align:center;margin-bottom:8px;
+background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:var(--text2);font-size:14px;margin-bottom:32px}
+label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px;margin-top:16px}
+input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);
+border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+input:focus{border-color:var(--accent)}
+.btn{width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:10px;
+font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;transition:all 0.2s}
+.btn:hover{background:#5A4BD1}
+.switch{text-align:center;margin-top:20px;font-size:13px;color:var(--text2)}
+.switch a{color:var(--accent2);text-decoration:none}
+.error{background:rgba(255,107,107,0.1);color:var(--red);padding:12px;border-radius:10px;font-size:13px;margin-top:16px;display:none}
+.suite{margin-top:24px;text-align:center;font-size:12px;color:var(--text2)}.suite a{color:var(--text2);text-decoration:none;font-weight:600}.suite a:hover{color:var(--accent2)}
+</style></head><body>
+<div class="card">
+<div class="logo">ExpenseSnap</div>
+<div class="subtitle">Sign in to your account</div>
+<div class="error" id="error"></div>
 <form onsubmit="handleLogin(event)">
 <label>Email</label><input type="email" id="email" required placeholder="you@company.com">
 <label>Password</label><input type="password" id="password" required placeholder="Enter password">
-<button type="submit" class="sub">Sign In</button>
+<button type="submit" class="btn">Sign In</button>
 </form>
-<div class="sw">New here? <a href="/register">Create an account</a></div>
-<div class="sw" style="margin-top:8px"><a href="/forgot-password">Forgot password?</a></div>
+<div class="switch">New here? <a href="/register">Create an account</a></div>
+<div class="switch" style="margin-top:10px"><a href="/forgot-password">Forgot password?</a></div>
+<div class="suite"><a href="/login">← Back to ExpenseSnap home</a></div>
 </div>
-<div class="suite">Part of <a href="https://snapsuite.up.railway.app">SnapSuite</a> — 6 apps for your entire business</div>
-</section>
 <script>
 async function handleLogin(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
 try{const res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -876,7 +890,7 @@ input:focus{border-color:var(--accent)}
 <label>Invite Code <span style="color:var(--text2)">(not needed for first user)</span></label>
 <input type="text" id="invite_code" placeholder="Ask your admin for this">
 <button type="submit" class="btn">Create Account</button></form>
-<div class="sw">Already have an account? <a href="/login">Sign in</a></div></div>
+<div class="sw">Already have an account? <a href="/signin">Sign in</a></div></div>
 <div class="suite">Part of <a href="https://snapsuite.up.railway.app">SnapSuite</a> — 6 apps for your entire business</div>
 <script>
 async function handleRegister(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
