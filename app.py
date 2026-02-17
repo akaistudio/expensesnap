@@ -1114,7 +1114,6 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <button class="nav-tab active" data-tab="upload">Upload</button>
 <button class="nav-tab" data-tab="dashboard">Dashboard</button>
 <button class="nav-tab" data-tab="expenses">All Expenses</button>
-<button class="nav-tab" data-tab="split">Split</button>
 <button class="nav-tab" data-tab="team">Team</button>
 <button class="nav-tab" data-tab="companies" id="companiesTab" style="display:none">Companies</button>
 </nav>
@@ -1130,15 +1129,30 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 </div>
 
 <div id="upload" class="section active">
+
+<div id="modeSelector">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+<div onclick="showUploadMode('business')" id="modeBusiness" style="background:var(--card);border:2px solid var(--accent);border-radius:14px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center">
+<div style="font-size:32px;margin-bottom:8px">🏢</div>
+<div style="font-weight:700;font-size:15px;color:var(--text1)">Business Expenses</div>
+<div style="font-size:12px;color:var(--text2);margin-top:4px">Scan receipts • Manual entry • Track company costs</div>
+</div>
+<div onclick="showUploadMode('trip')" id="modeTrip" style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center">
+<div style="font-size:32px;margin-bottom:8px">✈️</div>
+<div style="font-weight:700;font-size:15px;color:var(--text1)">Trip / Group Split</div>
+<div style="font-size:12px;color:var(--text2);margin-top:4px">Split bills with friends • Multi-currency • Who owes whom</div>
+</div>
+</div>
+</div>
+
+<div id="businessMode">
 <div class="upload-zone" id="dropZone">
 <div class="upload-icon">📸</div>
 <div class="upload-title">Drop receipt here or tap to upload</div>
-<div class="upload-sub">Supports JPG, PNG, WebP, HEIC, PDF • Phone camera or album</div>
+<div class="upload-sub">AI scans & extracts vendor, amount, tax, items automatically</div>
 <input type="file" class="upload-input" id="fileInput" accept="image/*,.pdf" multiple>
 </div>
-
 <div style="text-align:center;margin:20px 0 12px;color:var(--text2);font-size:13px">— or add manually —</div>
-
 <div class="manual-entry" style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;max-width:500px;margin:0 auto">
 <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
 <span style="font-size:20px">✏️</span>
@@ -1146,56 +1160,91 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <span style="font-size:12px;color:var(--text2);background:var(--bg);padding:3px 10px;border-radius:20px;margin-left:auto">No receipt needed</span>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-<div style="grid-column:1/-1">
-<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Description / Vendor *</label>
-<input type="text" id="manualVendor" placeholder="e.g. January Payroll — John Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Amount *</label>
-<input type="number" id="manualTotal" placeholder="5000.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Date</label>
-<input type="date" id="manualDate" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Category</label>
+<div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Description / Vendor *</label>
+<input type="text" id="manualVendor" placeholder="e.g. January Payroll — John Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Amount *</label>
+<input type="number" id="manualTotal" placeholder="5000.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Date</label>
+<input type="date" id="manualDate" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Category</label>
 <select id="manualCategory" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-<option value="Payroll & Salary">💰 Payroll & Salary</option>
-<option value="Professional Services">👔 Professional Services</option>
-<option value="Software & Subscriptions">💻 Software & Subscriptions</option>
-<option value="Office & Business">🏢 Office & Business</option>
-<option value="Utilities">⚡ Utilities</option>
-<option value="Food & Dining">🍽 Food & Dining</option>
-<option value="Air Travel">✈️ Air Travel</option>
-<option value="Cab & Rideshare">🚕 Cab & Rideshare</option>
-<option value="Hotel & Accommodation">🏨 Hotel & Accommodation</option>
-<option value="Shopping & Retail">🛍 Shopping & Retail</option>
-<option value="Entertainment">🎬 Entertainment</option>
-<option value="Healthcare">🏥 Healthcare</option>
-<option value="Fuel & Parking">⛽ Fuel & Parking</option>
-<option value="Other">📋 Other</option>
-</select>
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Payment Method</label>
+<option value="Payroll & Salary">💰 Payroll & Salary</option><option value="Professional Services">👔 Professional Services</option><option value="Software & Subscriptions">💻 Software & Subscriptions</option><option value="Office & Business">🏢 Office & Business</option><option value="Utilities">⚡ Utilities</option><option value="Food & Dining">🍽 Food & Dining</option><option value="Air Travel">✈️ Air Travel</option><option value="Cab & Rideshare">🚕 Cab & Rideshare</option><option value="Hotel & Accommodation">🏨 Hotel & Accommodation</option><option value="Shopping & Retail">🛍 Shopping & Retail</option><option value="Entertainment">🎬 Entertainment</option><option value="Healthcare">🏥 Healthcare</option><option value="Fuel & Parking">⛽ Fuel & Parking</option><option value="Other">📋 Other</option></select></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Payment Method</label>
 <select id="manualPayment" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-<option value="Bank Transfer">Bank Transfer</option>
-<option value="Cash">Cash</option>
-<option value="Credit Card">Credit Card</option>
-<option value="Debit Card">Debit Card</option>
-<option value="UPI">UPI</option>
-<option value="Check">Check</option>
-</select>
+<option value="Bank Transfer">Bank Transfer</option><option value="Cash">Cash</option><option value="Credit Card">Credit Card</option><option value="Debit Card">Debit Card</option><option value="UPI">UPI</option><option value="Check">Check</option></select></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Tax (optional)</label>
+<input type="number" id="manualTax" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div style="grid-column:1/-1;text-align:right;margin-top:4px"><button onclick="submitManualExpense()" style="padding:10px 24px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Add Expense</button></div>
+</div></div>
 </div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Tax (optional)</label>
-<input type="number" id="manualTax" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+
+<div id="tripMode" style="display:none">
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-primary btn-sm" onclick="showNewTrip()">+ New Trip</button></div>
+<div id="newTripForm" style="display:none;background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px">
+<h4 style="margin-bottom:14px;color:var(--text1)">Create New Trip</h4>
+<div style="display:grid;gap:10px">
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Trip Name *</label>
+<input type="text" id="tripName" placeholder="e.g. Ireland & Scotland 2026" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Members * (comma separated)</label>
+<input type="text" id="tripMembers" placeholder="e.g. Priya, Sarah, Mei, Lisa" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Settle in (base currency)</label>
+<select id="tripCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+<option value="EUR" selected>🇪🇺 EUR</option><option value="GBP">🇬🇧 GBP</option><option value="USD">🇺🇸 USD</option><option value="MYR">🇲🇾 MYR</option><option value="INR">🇮🇳 INR</option><option value="CAD">🇨🇦 CAD</option></select>
+<div style="font-size:11px;color:var(--text2);margin-top:4px">All expenses converted to this for final settlements</div></div>
+<div style="display:flex;gap:10px;justify-content:flex-end">
+<button class="btn btn-ghost btn-sm" onclick="hideNewTrip()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="createTrip()">Create Trip</button></div>
+</div></div>
+<div id="tripList"></div>
 </div>
-<div style="grid-column:1/-1;text-align:right;margin-top:4px">
-<button onclick="submitManualExpense()" style="padding:10px 24px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Add Expense</button>
+
+<div id="splitDetail" style="display:none">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+<button class="btn btn-ghost btn-sm" onclick="backToTrips()">← Back</button>
+<h3 id="tripDetailName" style="color:var(--text1);font-size:18px;font-weight:700"></h3>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px">
+<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Total Spent</div>
+<div id="tripTotal" style="font-size:24px;font-weight:700;color:var(--accent2);margin-top:4px"></div></div>
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px">
+<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Per Person (avg)</div>
+<div id="tripPerPerson" style="font-size:24px;font-weight:700;color:var(--text1);margin-top:4px"></div></div>
+</div>
+<div id="settlementsBox" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1.5px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:20px">
+<div style="font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:10px">💸 Settle Up</div>
+<div id="settlementsList"></div></div>
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px">
+<div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:10px">📊 Balances</div>
+<div id="balanceBars"></div></div>
+
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+<h4 style="margin-bottom:14px;color:var(--text1)">Add Expense</h4>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+<div style="grid-column:1/-1;background:var(--bg);border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;position:relative" onclick="document.getElementById('tripFileInput').click()" id="tripDropZone">
+<div style="font-size:24px;margin-bottom:4px">📸</div>
+<div style="font-size:13px;font-weight:600;color:var(--text1)">Scan a receipt</div>
+<div style="font-size:11px;color:var(--text2)">Upload photo — AI extracts amount & vendor</div>
+<input type="file" id="tripFileInput" accept="image/*,.pdf" style="display:none" onchange="scanTripReceipt(this)">
+<div id="tripScanStatus" style="display:none;margin-top:8px;font-size:12px;color:var(--accent2)">🔄 Scanning...</div>
 </div>
 </div>
+<div style="text-align:center;color:var(--text2);font-size:12px;margin-bottom:12px">— or enter manually —</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">What was it for? *</label>
+<input type="text" id="splitDesc" placeholder="e.g. Dinner at Temple Bar" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Amount *</label>
+<input type="number" id="splitAmt" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Currency</label>
+<select id="splitCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+<option value="EUR">🇪🇺 EUR</option><option value="GBP">🇬🇧 GBP</option><option value="USD">🇺🇸 USD</option><option value="MYR">🇲🇾 MYR</option><option value="INR">🇮🇳 INR</option><option value="CAD">🇨🇦 CAD</option></select></div>
+<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Paid by *</label>
+<select id="splitPaidBy" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></select></div>
+<div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Split among</label>
+<div id="splitAmongChecks" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>
+<div style="grid-column:1/-1;text-align:right"><button class="btn btn-primary btn-sm" onclick="addTripExpense()">Add</button></div>
+</div></div>
+<div><h4 style="color:var(--text1);margin-bottom:12px">Expenses</h4><div id="tripExpenseList"></div></div>
 </div>
 
 <div id="recentUploads" style="margin-top:28px;"></div>
@@ -1211,116 +1260,6 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div class="table-header"><h3>All Expenses</h3>
 <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📥 Export</button></div>
 <div id="expenseTable"></div>
-</div>
-</div>
-
-<div id="split" class="section">
-<div id="splitTrips">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-<h3 style="color:var(--text1);font-size:18px;font-weight:700">✂️ Trip Splitter</h3>
-<button class="btn btn-primary btn-sm" onclick="showNewTrip()">+ New Trip</button>
-</div>
-
-<div id="newTripForm" style="display:none;background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px">
-<h4 style="margin-bottom:14px;color:var(--text1)">Create New Trip</h4>
-<div style="display:grid;gap:10px">
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Trip Name *</label>
-<input type="text" id="tripName" placeholder="e.g. Barcelona Weekend, Goa Trip 2026" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Members * (comma separated)</label>
-<input type="text" id="tripMembers" placeholder="e.g. Priya, Rahul, Anita, John" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Settle in (base currency)</label>
-<select id="tripCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-<option value="USD">🇺🇸 USD — US Dollar</option>
-<option value="EUR" selected>🇪🇺 EUR — Euro</option>
-<option value="GBP">🇬🇧 GBP — British Pound</option>
-<option value="INR">🇮🇳 INR — Indian Rupee</option>
-<option value="CAD">🇨🇦 CAD — Canadian Dollar</option>
-<option value="MYR">🇲🇾 MYR — Malaysian Ringgit</option>
-</select>
-<div style="font-size:11px;color:var(--text2);margin-top:4px">All expenses will be converted to this currency for settlements</div>
-</div>
-<div style="display:flex;gap:10px;justify-content:flex-end">
-<button class="btn btn-ghost btn-sm" onclick="hideNewTrip()">Cancel</button>
-<button class="btn btn-primary btn-sm" onclick="createTrip()">Create Trip</button>
-</div>
-</div>
-</div>
-
-<div id="tripList"></div>
-</div>
-
-<div id="splitDetail" style="display:none">
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-<button class="btn btn-ghost btn-sm" onclick="backToTrips()">← Back</button>
-<h3 id="tripDetailName" style="color:var(--text1);font-size:18px;font-weight:700"></h3>
-</div>
-
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px" id="splitCards">
-<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px">
-<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Total Spent</div>
-<div id="tripTotal" style="font-size:24px;font-weight:700;color:var(--accent2);margin-top:4px"></div>
-</div>
-<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px">
-<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Per Person (avg)</div>
-<div id="tripPerPerson" style="font-size:24px;font-weight:700;color:var(--text1);margin-top:4px"></div>
-</div>
-</div>
-
-<div id="settlementsBox" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1.5px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:20px">
-<div style="font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:10px">💸 Settle Up</div>
-<div id="settlementsList"></div>
-</div>
-
-<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px">
-<div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:10px">📊 Balances</div>
-<div id="balanceBars"></div>
-</div>
-
-<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
-<h4 style="margin-bottom:14px;color:var(--text1)">Add Expense</h4>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-<div style="grid-column:1/-1">
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">What was it for? *</label>
-<input type="text" id="splitDesc" placeholder="e.g. Dinner at La Boqueria" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Amount *</label>
-<input type="number" id="splitAmt" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Currency</label>
-<select id="splitCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-<option value="EUR">🇪🇺 EUR</option>
-<option value="GBP">🇬🇧 GBP</option>
-<option value="USD">🇺🇸 USD</option>
-<option value="MYR">🇲🇾 MYR</option>
-<option value="INR">🇮🇳 INR</option>
-<option value="CAD">🇨🇦 CAD</option>
-</select>
-</div>
-<div>
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Paid by *</label>
-<select id="splitPaidBy" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></select>
-</div>
-<div style="grid-column:1/-1">
-<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Split among</label>
-<div id="splitAmongChecks" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-</div>
-<div style="grid-column:1/-1;text-align:right">
-<button class="btn btn-primary btn-sm" onclick="addTripExpense()">Add</button>
-</div>
-</div>
-</div>
-
-<div>
-<h4 style="color:var(--text1);margin-bottom:12px">Expenses</h4>
-<div id="tripExpenseList"></div>
-</div>
 </div>
 </div>
 
@@ -1426,7 +1365,6 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.getElementById(tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'dashboard') loadDashboard();
     if (tab.dataset.tab === 'expenses') loadExpenses();
-    if (tab.dataset.tab === 'split') loadTrips();
     if (tab.dataset.tab === 'team') { loadTeam(); loadCompanySettings(); }
     if (tab.dataset.tab === 'companies') loadCompanies();
   });
@@ -1561,6 +1499,17 @@ async function deleteExpense(id) {
 }
 
 // Team
+// ── Mode switching ──
+function showUploadMode(mode) {
+  document.getElementById('businessMode').style.display = mode === 'business' ? '' : 'none';
+  document.getElementById('tripMode').style.display = mode === 'trip' ? '' : 'none';
+  document.getElementById('splitDetail').style.display = 'none';
+  document.getElementById('modeSelector').style.display = '';
+  document.getElementById('modeBusiness').style.borderColor = mode === 'business' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('modeTrip').style.borderColor = mode === 'trip' ? 'var(--accent)' : 'var(--border)';
+  if (mode === 'trip') loadTrips();
+}
+
 // ── Trip Splitting ──
 let currentTripId = null;
 let currentTripMembers = [];
@@ -1618,7 +1567,8 @@ async function createTrip() {
 }
 
 function backToTrips() {
-  document.getElementById('splitTrips').style.display = 'block';
+  document.getElementById('modeSelector').style.display = '';
+  document.getElementById('tripMode').style.display = '';
   document.getElementById('splitDetail').style.display = 'none';
   currentTripId = null;
   loadTrips();
@@ -1626,7 +1576,9 @@ function backToTrips() {
 
 async function openTrip(tripId) {
   currentTripId = tripId;
-  document.getElementById('splitTrips').style.display = 'none';
+  document.getElementById('modeSelector').style.display = 'none';
+  document.getElementById('tripMode').style.display = 'none';
+  document.getElementById('businessMode').style.display = 'none';
   document.getElementById('splitDetail').style.display = 'block';
   await refreshTripDetail();
 }
@@ -1748,6 +1700,40 @@ async function deleteTripExp(expId) {
   if (!confirm('Delete this expense?')) return;
   await fetch(apiUrl(`/api/trips/${currentTripId}/expenses/${expId}`), {method:'DELETE'});
   await refreshTripDetail();
+}
+
+async function scanTripReceipt(input) {
+  if (!input.files.length || !currentTripId) return;
+  const file = input.files[0];
+  const paidBy = document.getElementById('splitPaidBy').value;
+  const checked = [...document.querySelectorAll('#splitAmongChecks input:checked')].map(c => c.value);
+  if (!paidBy) { alert('Select "Paid by" first'); input.value = ''; return; }
+
+  const status = document.getElementById('tripScanStatus');
+  status.style.display = 'block';
+  status.textContent = '🔄 Scanning receipt...';
+
+  const formData = new FormData();
+  formData.append('receipt', file);
+  formData.append('paid_by', paidBy);
+  formData.append('split_among', JSON.stringify(checked.length ? checked : currentTripMembers));
+
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${currentTripId}/scan`), {method: 'POST', body: formData});
+    const data = await res.json();
+    if (data.success) {
+      status.textContent = '✅ ' + data.expense.description + ' — ' + data.expense.currency + ' ' + data.expense.amount.toFixed(2);
+      setTimeout(() => { status.style.display = 'none'; }, 3000);
+      await refreshTripDetail();
+    } else {
+      status.textContent = '❌ ' + (data.error || 'Scan failed');
+      setTimeout(() => { status.style.display = 'none'; }, 4000);
+    }
+  } catch(e) {
+    status.textContent = '❌ Error: ' + e.message;
+    setTimeout(() => { status.style.display = 'none'; }, 4000);
+  }
+  input.value = '';
 }
 
 async function loadTeam() {
@@ -2042,6 +2028,87 @@ def delete_trip_expense(trip_id, exp_id):
     cur.execute("DELETE FROM trip_expenses WHERE id=%s AND trip_id=%s", (exp_id, trip_id))
     conn.commit(); conn.close()
     return jsonify({"success": True})
+
+@app.route('/api/trips/<trip_id>/scan', methods=['POST'])
+@login_required
+def scan_trip_receipt(trip_id):
+    """Upload & scan a receipt, then add as trip expense"""
+    if 'receipt' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['receipt']
+    paid_by = request.form.get('paid_by', '')
+    split_among = request.form.get('split_among', '[]')
+    try:
+        split_among_list = json.loads(split_among)
+    except:
+        split_among_list = []
+
+    ext_map = {'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif','.heic':'image/heic','.heif':'image/heic','.pdf':'application/pdf'}
+    ext = Path(file.filename).suffix.lower()
+    media_type = ext_map.get(ext, 'image/jpeg')
+    image_bytes = file.read()
+
+    # Convert HEIC
+    if ext in ('.heic', '.heif'):
+        try:
+            from PIL import Image
+            img = Image.open(BytesIO(image_bytes))
+            buf = BytesIO(); img.convert('RGB').save(buf, format='JPEG', quality=85)
+            image_bytes = buf.getvalue(); media_type = 'image/jpeg'
+        except: pass
+
+    # Compress large images
+    if ext not in ('.pdf',) and len(image_bytes) > 1.5 * 1024 * 1024:
+        try:
+            from PIL import Image
+            img = Image.open(BytesIO(image_bytes))
+            if max(img.size) > 2000: img.thumbnail((2000, 2000), Image.LANCZOS)
+            buf = BytesIO(); img.convert('RGB').save(buf, format='JPEG', quality=80)
+            image_bytes = buf.getvalue(); media_type = 'image/jpeg'
+        except: pass
+
+    # Extract data from receipt
+    try:
+        if ext == '.pdf':
+            pdf_doc = fitz.open(stream=image_bytes, filetype="pdf")
+            page_images = []
+            for i in range(min(len(pdf_doc), 10)):
+                pix = pdf_doc[i].get_pixmap(dpi=200)
+                page_images.append((pix.tobytes("png"), "image/png"))
+            pdf_doc.close()
+            data = extract_receipt(page_images)
+        else:
+            data = extract_receipt(image_bytes, media_type)
+    except Exception as e:
+        return jsonify({"error": f"Failed to scan receipt: {str(e)}"}), 500
+
+    # Get trip base currency and convert
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT currency FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    if not trip: conn.close(); return jsonify({"error": "Trip not found"}), 404
+    base_currency = trip['currency']
+
+    amount = float(data.get('total', 0))
+    exp_currency = data.get('currency', 'USD').upper()
+    amount_base = convert_currency(amount, exp_currency, base_currency)
+    vendor = data.get('vendor', 'Unknown')
+    exp_id = str(uuid.uuid4())
+
+    if not split_among_list:
+        cur.execute("SELECT name FROM trip_members WHERE trip_id=%s ORDER BY id", (trip_id,))
+        split_among_list = [m['name'] for m in cur.fetchall()]
+
+    cur.execute("""INSERT INTO trip_expenses (id,trip_id,description,amount,amount_base,currency,paid_by,split_among,date,category)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (exp_id, trip_id, vendor, amount, amount_base, exp_currency,
+                 paid_by, json.dumps(split_among_list), data.get('date', ''), data.get('category', 'Other')))
+    conn.commit(); conn.close()
+
+    return jsonify({"success": True, "id": exp_id, "expense": {
+        "description": vendor, "amount": amount, "amount_base": amount_base,
+        "currency": exp_currency, "paid_by": paid_by, "category": data.get('category', 'Other'),
+        "date": data.get('date', ''), "items": data.get('items', '')}})
 
 # --- External API for SnapSuite ---
 @app.route('/api/expenses/external')
