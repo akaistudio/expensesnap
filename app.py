@@ -737,14 +737,22 @@ def index():
 LANDING_HTML = r"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>ExpenseSnap — AI Receipt Scanner & Trip Splitter</title>
+<title>ExpenseSnap — AI Receipt Scanner & SplitSnap</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
 --accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B;--teal:#2dd4bf}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
-a{text-decoration:none}
+a{text-decoration:none;color:inherit}
+.btn-hero{display:inline-block;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;margin:0 6px 8px;transition:all .2s;cursor:pointer}
+.btn-hero:hover{transform:translateY(-2px)}
+.btn-fill{background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff !important;box-shadow:0 4px 20px rgba(108,92,231,.2)}
+.btn-fill:hover{box-shadow:0 8px 30px rgba(108,92,231,.4)}
+.btn-outline{background:transparent;color:var(--text) !important;border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent) !important}
+.mode-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;display:block;color:inherit}
+.mode-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.3)}
 </style></head><body>
 
 <section style="min-height:80vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 24px 40px;position:relative;overflow:hidden">
@@ -752,23 +760,23 @@ a{text-decoration:none}
 <div style="max-width:720px">
 <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(108,92,231,.1);border:1px solid rgba(108,92,231,.2);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:24px">✦ AI-Powered Expense Tracking</div>
 <h1 style="font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.15;margin-bottom:16px;color:#fff">Snap a receipt.<br><span style="background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Split a trip.</span></h1>
-<p style="font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto">AI-powered receipt scanning for business expenses, plus a Splitwise-style trip splitter for group travel. Multi-currency, multi-country, instant settlements.</p>
+<p style="font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto">AI-powered receipt scanning for business expenses, plus SplitSnap — a Splitwise-style bill splitter for group travel. Multi-currency, multi-country, instant settlements.</p>
 <div>
-<a href="/login" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:10px;font-size:15px;font-weight:700;margin:0 6px 8px;transition:.2s">Sign In →</a>
-<a href="/register" style="display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;margin:0 6px 8px">Create Account</a>
-<a href="#features" style="display:inline-block;padding:14px 32px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;margin:0 6px 8px">See Features</a>
+<a href="/login" class="btn-hero btn-fill">Sign In →</a>
+<a href="/register" class="btn-hero btn-outline">Create Account</a>
+<a href="#features" class="btn-hero btn-outline">See Features</a>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px;max-width:500px;margin-left:auto;margin-right:auto">
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center">
+<a href="/login" class="mode-card">
 <div style="font-size:28px;margin-bottom:6px">🏢</div>
 <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Business Expenses</div>
 <div style="font-size:11px;color:var(--text2);line-height:1.4">Scan receipts, manual entry, P&L dashboard, Excel export</div>
-</div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center">
+</a>
+<a href="/login" class="mode-card">
 <div style="font-size:28px;margin-bottom:6px">✈️</div>
-<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Trip Splitter</div>
-<div style="font-size:11px;color:var(--text2);line-height:1.4">Add friends, scan bills, split in any currency, who owes whom</div>
-</div>
+<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">SplitSnap</div>
+<div style="font-size:11px;color:var(--text2);line-height:1.4">Like Splitwise — add friends, scan bills, split in any currency, settle up</div>
+</a>
 </div>
 </div>
 </section>
@@ -778,7 +786,7 @@ a{text-decoration:none}
 <div style="font-size:28px;font-weight:800;color:#fff;text-align:center;margin-bottom:36px">Two apps in one — business + personal</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📸</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">AI Receipt Scanner</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Upload any receipt — AI extracts vendor, items, amount, tax, currency, and category in seconds. Works for both business and trip expenses.</div></div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">✂️</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Trip Expense Splitter</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Create a trip, add friends, log expenses (scan or manual). Auto-calculates who owes whom with minimum settlements.</div></div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">✂️</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">SplitSnap — Group Bill Splitting</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Create a trip, add friends, log expenses (scan or manual). Auto-calculates who owes whom with minimum settlements.</div></div>
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">💱</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Multi-Currency</div><div style="font-size:13px;color:var(--text2);line-height:1.6">USD, EUR, GBP, INR, CAD, MYR and more. Trip expenses auto-convert to your chosen base currency for settlements.</div></div>
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📊</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">P&L Dashboard</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Business expenses feed into a live dashboard. Total spend, category breakdown, monthly trends at a glance.</div></div>
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">✏️</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Manual Entry</div><div style="font-size:13px;color:var(--text2);line-height:1.6">No receipt? No problem. Log payroll, subscriptions, and recurring costs manually with category and payment method.</div></div>
@@ -797,8 +805,8 @@ a{text-decoration:none}
 </section>
 
 <section style="padding:40px 24px 80px;text-align:center">
-<a href="/login" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
-<a href="/register" style="display:inline-block;padding:18px 48px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:12px;font-size:17px;font-weight:600;margin:0 8px 10px">Create Free Account</a>
+<a href="/login" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff !important;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
+<a href="/register" style="display:inline-block;padding:18px 48px;background:transparent;color:var(--text) !important;border:1.5px solid var(--border);border-radius:12px;font-size:17px;font-weight:600;margin:0 8px 10px">Create Free Account</a>
 <div style="margin-top:20px;font-size:12px;color:var(--text2)">Part of <a href="https://snapsuite.up.railway.app" style="color:var(--accent2)">SnapSuite</a> — 6 apps for your entire business</div>
 </section>
 </body></html>"""
@@ -1209,8 +1217,8 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 </div>
 <div onclick="showUploadMode('trip')" id="modeTrip" style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center">
 <div style="font-size:32px;margin-bottom:8px">✈️</div>
-<div style="font-weight:700;font-size:15px;color:var(--text1)">Trip / Group Split</div>
-<div style="font-size:12px;color:var(--text2);margin-top:4px">Split bills with friends • Multi-currency • Who owes whom</div>
+<div style="font-weight:700;font-size:15px;color:var(--text1)">SplitSnap</div>
+<div style="font-size:12px;color:var(--text2);margin-top:4px">Like Splitwise — split bills with friends • Multi-currency • Who owes whom</div>
 </div>
 </div>
 </div>
