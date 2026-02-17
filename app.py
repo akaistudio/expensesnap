@@ -82,6 +82,24 @@ def init_db():
             cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {'VARCHAR(10)' if 'currency' in col else 'DOUBLE PRECISION'} DEFAULT {default}")
         except Exception:
             conn.rollback()
+
+    # Trip expense splitting tables
+    cur.execute("""CREATE TABLE IF NOT EXISTS trips (
+        id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL,
+        currency VARCHAR(10) DEFAULT 'USD',
+        created_by VARCHAR(36), company_id VARCHAR(36),
+        settled BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS trip_members (
+        id SERIAL PRIMARY KEY, trip_id VARCHAR(36) REFERENCES trips(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS trip_expenses (
+        id VARCHAR(36) PRIMARY KEY, trip_id VARCHAR(36) REFERENCES trips(id) ON DELETE CASCADE,
+        description VARCHAR(255) NOT NULL, amount DOUBLE PRECISION DEFAULT 0,
+        paid_by VARCHAR(255) NOT NULL, split_among TEXT DEFAULT '[]',
+        date VARCHAR(20), category VARCHAR(100) DEFAULT 'General',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+
     conn.commit(); cur.close(); conn.close()
 
 def hash_password(password):
@@ -1086,6 +1104,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <button class="nav-tab active" data-tab="upload">Upload</button>
 <button class="nav-tab" data-tab="dashboard">Dashboard</button>
 <button class="nav-tab" data-tab="expenses">All Expenses</button>
+<button class="nav-tab" data-tab="split">Split</button>
 <button class="nav-tab" data-tab="team">Team</button>
 <button class="nav-tab" data-tab="companies" id="companiesTab" style="display:none">Companies</button>
 </nav>
@@ -1182,6 +1201,93 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div class="table-header"><h3>All Expenses</h3>
 <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📥 Export</button></div>
 <div id="expenseTable"></div>
+</div>
+</div>
+
+<div id="split" class="section">
+<div id="splitTrips">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+<h3 style="color:var(--text1);font-size:18px;font-weight:700">✂️ Trip Splitter</h3>
+<button class="btn btn-primary btn-sm" onclick="showNewTrip()">+ New Trip</button>
+</div>
+
+<div id="newTripForm" style="display:none;background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px">
+<h4 style="margin-bottom:14px;color:var(--text1)">Create New Trip</h4>
+<div style="display:grid;gap:10px">
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Trip Name *</label>
+<input type="text" id="tripName" placeholder="e.g. Barcelona Weekend, Goa Trip 2026" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Members * (comma separated)</label>
+<input type="text" id="tripMembers" placeholder="e.g. Priya, Rahul, Anita, John" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div style="display:flex;gap:10px;justify-content:flex-end">
+<button class="btn btn-ghost btn-sm" onclick="hideNewTrip()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="createTrip()">Create Trip</button>
+</div>
+</div>
+</div>
+
+<div id="tripList"></div>
+</div>
+
+<div id="splitDetail" style="display:none">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+<button class="btn btn-ghost btn-sm" onclick="backToTrips()">← Back</button>
+<h3 id="tripDetailName" style="color:var(--text1);font-size:18px;font-weight:700"></h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px" id="splitCards">
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px">
+<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Total Spent</div>
+<div id="tripTotal" style="font-size:24px;font-weight:700;color:var(--accent2);margin-top:4px"></div>
+</div>
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px">
+<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Per Person (avg)</div>
+<div id="tripPerPerson" style="font-size:24px;font-weight:700;color:var(--text1);margin-top:4px"></div>
+</div>
+</div>
+
+<div id="settlementsBox" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1.5px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:20px">
+<div style="font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:10px">💸 Settle Up</div>
+<div id="settlementsList"></div>
+</div>
+
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px">
+<div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:10px">📊 Balances</div>
+<div id="balanceBars"></div>
+</div>
+
+<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+<h4 style="margin-bottom:14px;color:var(--text1)">Add Expense</h4>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="grid-column:1/-1">
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">What was it for? *</label>
+<input type="text" id="splitDesc" placeholder="e.g. Dinner at La Boqueria" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Amount *</label>
+<input type="number" id="splitAmt" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Paid by *</label>
+<select id="splitPaidBy" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></select>
+</div>
+<div style="grid-column:1/-1">
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Split among</label>
+<div id="splitAmongChecks" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+</div>
+<div style="grid-column:1/-1;text-align:right">
+<button class="btn btn-primary btn-sm" onclick="addTripExpense()">Add</button>
+</div>
+</div>
+</div>
+
+<div>
+<h4 style="color:var(--text1);margin-bottom:12px">Expenses</h4>
+<div id="tripExpenseList"></div>
+</div>
 </div>
 </div>
 
@@ -1287,6 +1393,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.getElementById(tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'dashboard') loadDashboard();
     if (tab.dataset.tab === 'expenses') loadExpenses();
+    if (tab.dataset.tab === 'split') loadTrips();
     if (tab.dataset.tab === 'team') { loadTeam(); loadCompanySettings(); }
     if (tab.dataset.tab === 'companies') loadCompanies();
   });
@@ -1421,6 +1528,185 @@ async function deleteExpense(id) {
 }
 
 // Team
+// ── Trip Splitting ──
+let currentTripId = null;
+let currentTripMembers = [];
+let currentTripCurrency = '$';
+
+function showNewTrip() { document.getElementById('newTripForm').style.display = 'block'; }
+function hideNewTrip() { document.getElementById('newTripForm').style.display = 'none'; }
+
+async function loadTrips() {
+  try {
+    const res = await fetch(apiUrl('/api/trips'));
+    const data = await res.json();
+    const el = document.getElementById('tripList');
+    if (!data.trips || data.trips.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)"><div style="font-size:40px;margin-bottom:12px">✈️</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">No trips yet</div><div style="font-size:13px">Create a trip to start splitting expenses with friends!</div></div>';
+      return;
+    }
+    el.innerHTML = data.trips.map(t => {
+      const currMap = {'USD':'$','INR':'₹','EUR':'€','GBP':'£','CAD':'C$','MYR':'RM'};
+      const c = currMap[t.currency] || t.currency + ' ';
+      return `<div onclick="openTrip('${t.id}')" style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--text1)">✈️ ${t.name}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px">${t.members.join(', ')}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700;font-size:16px;color:var(--accent2)">${c}${t.total.toFixed(2)}</div>
+            <div style="font-size:11px;color:var(--text2)">${t.members.length} people</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function createTrip() {
+  const name = document.getElementById('tripName').value.trim();
+  const members = document.getElementById('tripMembers').value.split(',').map(m => m.trim()).filter(Boolean);
+  if (!name || members.length < 2) { alert('Enter trip name and at least 2 members'); return; }
+  try {
+    const res = await fetch(apiUrl('/api/trips'), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, members})
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('tripName').value = '';
+      document.getElementById('tripMembers').value = '';
+      hideNewTrip();
+      openTrip(data.trip_id);
+    } else { alert(data.error); }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function backToTrips() {
+  document.getElementById('splitTrips').style.display = 'block';
+  document.getElementById('splitDetail').style.display = 'none';
+  currentTripId = null;
+  loadTrips();
+}
+
+async function openTrip(tripId) {
+  currentTripId = tripId;
+  document.getElementById('splitTrips').style.display = 'none';
+  document.getElementById('splitDetail').style.display = 'block';
+  await refreshTripDetail();
+}
+
+async function refreshTripDetail() {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${currentTripId}/expenses`));
+    const data = await res.json();
+    const trip = data.trip;
+    const members = data.members;
+    currentTripMembers = members;
+    const currMap = {'USD':'$','INR':'₹','EUR':'€','GBP':'£','CAD':'C$','MYR':'RM'};
+    const c = currMap[trip.currency] || trip.currency + ' ';
+    currentTripCurrency = c;
+
+    document.getElementById('tripDetailName').textContent = '✈️ ' + trip.name;
+
+    // Totals
+    const total = data.expenses.reduce((s, e) => s + e.amount, 0);
+    document.getElementById('tripTotal').textContent = c + total.toFixed(2);
+    document.getElementById('tripPerPerson').textContent = c + (members.length ? (total / members.length).toFixed(2) : '0.00');
+
+    // Settlements
+    const sl = document.getElementById('settlementsList');
+    if (data.settlements.length === 0) {
+      sl.innerHTML = '<div style="color:var(--green);font-size:14px">✅ All settled up!</div>';
+    } else {
+      sl.innerHTML = data.settlements.map(s =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;color:var(--text1)">
+          <span style="font-weight:600">${s.from}</span>
+          <span style="color:var(--text2)">→</span>
+          <span style="font-weight:600">${s.to}</span>
+          <span style="margin-left:auto;font-weight:700;color:var(--accent2)">${c}${s.amount.toFixed(2)}</span>
+        </div>`
+      ).join('');
+    }
+
+    // Balance bars
+    const maxBal = Math.max(...Object.values(data.balances).map(Math.abs), 1);
+    document.getElementById('balanceBars').innerHTML = members.map(m => {
+      const b = data.balances[m] || 0;
+      const pct = Math.abs(b) / maxBal * 100;
+      const color = b >= 0 ? 'var(--green)' : '#ef4444';
+      const label = b >= 0 ? 'gets back' : 'owes';
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:80px;font-size:13px;font-weight:600;color:var(--text1);text-align:right">${m}</div>
+        <div style="flex:1;height:22px;background:var(--bg);border-radius:6px;overflow:hidden;position:relative">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:6px;opacity:0.7"></div>
+        </div>
+        <div style="width:100px;font-size:13px;font-weight:600;color:${color};text-align:right">${c}${Math.abs(b).toFixed(2)}<span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:3px">${label}</span></div>
+      </div>`;
+    }).join('');
+
+    // Paid by dropdown
+    const sel = document.getElementById('splitPaidBy');
+    sel.innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    // Split among checkboxes
+    const checks = document.getElementById('splitAmongChecks');
+    checks.innerHTML = members.map(m =>
+      `<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text1);cursor:pointer">
+        <input type="checkbox" value="${m}" checked style="accent-color:var(--accent)"> ${m}
+      </label>`
+    ).join('');
+
+    // Expense list
+    const el = document.getElementById('tripExpenseList');
+    if (data.expenses.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">No expenses yet — add one above!</div>';
+    } else {
+      el.innerHTML = data.expenses.map(e => {
+        const splitNames = (e.split_among || members).join(', ');
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:600;font-size:14px;color:var(--text1)">${e.description}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:3px">Paid by <b>${e.paid_by}</b> · Split: ${splitNames}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-weight:700;font-size:15px;color:var(--accent2)">${c}${e.amount.toFixed(2)}</div>
+            <button onclick="deleteTripExp('${e.id}')" style="background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;padding:4px">×</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function addTripExpense() {
+  const desc = document.getElementById('splitDesc').value.trim();
+  const amt = parseFloat(document.getElementById('splitAmt').value) || 0;
+  const paidBy = document.getElementById('splitPaidBy').value;
+  const checked = [...document.querySelectorAll('#splitAmongChecks input:checked')].map(c => c.value);
+  if (!desc || amt <= 0) { alert('Enter description and amount'); return; }
+  if (checked.length === 0) { alert('Select at least one person to split among'); return; }
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${currentTripId}/expenses`), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({description: desc, amount: amt, paid_by: paidBy, split_among: checked, date: new Date().toISOString().split('T')[0]})
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('splitDesc').value = '';
+      document.getElementById('splitAmt').value = '';
+      await refreshTripDetail();
+    } else { alert(data.error); }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteTripExp(expId) {
+  if (!confirm('Delete this expense?')) return;
+  await fetch(apiUrl(`/api/trips/${currentTripId}/expenses/${expId}`), {method:'DELETE'});
+  await refreshTripDetail();
+}
+
 async function loadTeam() {
   try {
     let url = '/api/team';
@@ -1585,6 +1871,122 @@ function showToast(msg,type='success') {
 </script></body></html>"""
 
 init_db()
+
+# --- Trip Expense Splitting (Splitwise-style) ---
+
+@app.route('/api/trips', methods=['GET'])
+@login_required
+def get_trips():
+    conn = get_db(); cur = conn.cursor()
+    company_id = session.get('company_id')
+    cur.execute("SELECT * FROM trips WHERE company_id=%s OR created_by=%s ORDER BY created_at DESC",
+                (company_id, session.get('user_id')))
+    trips = cur.fetchall()
+    for t in trips:
+        cur.execute("SELECT name FROM trip_members WHERE trip_id=%s ORDER BY id", (t['id'],))
+        t['members'] = [m['name'] for m in cur.fetchall()]
+        cur.execute("SELECT COALESCE(SUM(amount),0) as total FROM trip_expenses WHERE trip_id=%s", (t['id'],))
+        t['total'] = float(cur.fetchone()['total'])
+    conn.close()
+    return jsonify({"trips": trips})
+
+@app.route('/api/trips', methods=['POST'])
+@login_required
+def create_trip():
+    data = request.json or {}
+    if not data.get('name') or not data.get('members'):
+        return jsonify({"error": "Trip name and at least 2 members required"}), 400
+    members = [m.strip() for m in data['members'] if m.strip()]
+    if len(members) < 2:
+        return jsonify({"error": "Need at least 2 members"}), 400
+    trip_id = str(uuid.uuid4())
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("INSERT INTO trips (id,name,currency,created_by,company_id) VALUES (%s,%s,%s,%s,%s)",
+                (trip_id, data['name'], data.get('currency', 'USD'), session.get('user_id'), session.get('company_id')))
+    for m in members:
+        cur.execute("INSERT INTO trip_members (trip_id,name) VALUES (%s,%s)", (trip_id, m))
+    conn.commit(); conn.close()
+    return jsonify({"success": True, "trip_id": trip_id})
+
+@app.route('/api/trips/<trip_id>', methods=['DELETE'])
+@login_required
+def delete_trip(trip_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("DELETE FROM trips WHERE id=%s", (trip_id,))
+    conn.commit(); conn.close()
+    return jsonify({"success": True})
+
+@app.route('/api/trips/<trip_id>/expenses', methods=['GET'])
+@login_required
+def get_trip_expenses(trip_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    if not trip: conn.close(); return jsonify({"error": "Trip not found"}), 404
+    cur.execute("SELECT name FROM trip_members WHERE trip_id=%s ORDER BY id", (trip_id,))
+    members = [m['name'] for m in cur.fetchall()]
+    cur.execute("SELECT * FROM trip_expenses WHERE trip_id=%s ORDER BY created_at DESC", (trip_id,))
+    expenses = cur.fetchall()
+    for e in expenses:
+        try: e['split_among'] = json.loads(e['split_among']) if e['split_among'] else members
+        except: e['split_among'] = members
+
+    # Calculate balances
+    balances = {m: 0.0 for m in members}
+    for e in expenses:
+        amt = float(e['amount'])
+        split_list = e['split_among'] if e['split_among'] else members
+        per_person = amt / len(split_list)
+        balances[e['paid_by']] = balances.get(e['paid_by'], 0) + amt
+        for p in split_list:
+            balances[p] = balances.get(p, 0) - per_person
+
+    # Calculate minimum settlements
+    debtors = [(m, -b) for m, b in balances.items() if b < -0.01]
+    creditors = [(m, b) for m, b in balances.items() if b > 0.01]
+    debtors.sort(key=lambda x: -x[1])
+    creditors.sort(key=lambda x: -x[1])
+    settlements = []
+    di, ci = 0, 0
+    while di < len(debtors) and ci < len(creditors):
+        debtor, debt = debtors[di]
+        creditor, credit = creditors[ci]
+        amt = min(debt, credit)
+        if amt > 0.01:
+            settlements.append({"from": debtor, "to": creditor, "amount": round(amt, 2)})
+        debtors[di] = (debtor, debt - amt)
+        creditors[ci] = (creditor, credit - amt)
+        if debtors[di][1] < 0.01: di += 1
+        if creditors[ci][1] < 0.01: ci += 1
+
+    conn.close()
+    return jsonify({"trip": trip, "members": members, "expenses": expenses,
+                    "balances": {m: round(b, 2) for m, b in balances.items()},
+                    "settlements": settlements})
+
+@app.route('/api/trips/<trip_id>/expenses', methods=['POST'])
+@login_required
+def add_trip_expense(trip_id):
+    data = request.json or {}
+    if not data.get('description') or not data.get('amount') or not data.get('paid_by'):
+        return jsonify({"error": "Description, amount, and paid_by required"}), 400
+    exp_id = str(uuid.uuid4())
+    split_among = json.dumps(data.get('split_among', []))
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""INSERT INTO trip_expenses (id,trip_id,description,amount,paid_by,split_among,date,category)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (exp_id, trip_id, data['description'], float(data['amount']),
+                 data['paid_by'], split_among, data.get('date', ''), data.get('category', 'General')))
+    conn.commit(); conn.close()
+    return jsonify({"success": True, "id": exp_id})
+
+@app.route('/api/trips/<trip_id>/expenses/<exp_id>', methods=['DELETE'])
+@login_required
+def delete_trip_expense(trip_id, exp_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("DELETE FROM trip_expenses WHERE id=%s AND trip_id=%s", (exp_id, trip_id))
+    conn.commit(); conn.close()
+    return jsonify({"success": True})
 
 # --- External API for SnapSuite ---
 @app.route('/api/expenses/external')
