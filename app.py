@@ -2337,3 +2337,4 @@ def demo_setup():
                        (f'demo-{eid}',e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[6],round(e[6]/84,2),e[7],e[8],'',user['id'],cid))
     conn.commit(); conn.close()
     return jsonify({'success': True, 'app': 'ExpenseSnap'})
+
