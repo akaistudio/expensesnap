@@ -96,9 +96,19 @@ def init_db():
     cur.execute("""CREATE TABLE IF NOT EXISTS trip_expenses (
         id VARCHAR(36) PRIMARY KEY, trip_id VARCHAR(36) REFERENCES trips(id) ON DELETE CASCADE,
         description VARCHAR(255) NOT NULL, amount DOUBLE PRECISION DEFAULT 0,
+        amount_base DOUBLE PRECISION DEFAULT 0,
+        currency VARCHAR(10) DEFAULT 'USD',
         paid_by VARCHAR(255) NOT NULL, split_among TEXT DEFAULT '[]',
         date VARCHAR(20), category VARCHAR(100) DEFAULT 'General',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+
+    # Trip expense migrations for existing DBs
+    for col, default in [('amount_base', '0'), ('currency', "'USD'")]:
+        try:
+            typ = 'DOUBLE PRECISION' if col == 'amount_base' else 'VARCHAR(10)'
+            cur.execute(f"ALTER TABLE trip_expenses ADD COLUMN {col} {typ} DEFAULT {default}")
+        except Exception:
+            conn.rollback()
 
     conn.commit(); cur.close(); conn.close()
 
@@ -1222,6 +1232,18 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Members * (comma separated)</label>
 <input type="text" id="tripMembers" placeholder="e.g. Priya, Rahul, Anita, John" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
 </div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Settle in (base currency)</label>
+<select id="tripCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+<option value="USD">🇺🇸 USD — US Dollar</option>
+<option value="EUR" selected>🇪🇺 EUR — Euro</option>
+<option value="GBP">🇬🇧 GBP — British Pound</option>
+<option value="INR">🇮🇳 INR — Indian Rupee</option>
+<option value="CAD">🇨🇦 CAD — Canadian Dollar</option>
+<option value="MYR">🇲🇾 MYR — Malaysian Ringgit</option>
+</select>
+<div style="font-size:11px;color:var(--text2);margin-top:4px">All expenses will be converted to this currency for settlements</div>
+</div>
 <div style="display:flex;gap:10px;justify-content:flex-end">
 <button class="btn btn-ghost btn-sm" onclick="hideNewTrip()">Cancel</button>
 <button class="btn btn-primary btn-sm" onclick="createTrip()">Create Trip</button>
@@ -1269,6 +1291,17 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div>
 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Amount *</label>
 <input type="number" id="splitAmt" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Currency</label>
+<select id="splitCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
+<option value="EUR">🇪🇺 EUR</option>
+<option value="GBP">🇬🇧 GBP</option>
+<option value="USD">🇺🇸 USD</option>
+<option value="MYR">🇲🇾 MYR</option>
+<option value="INR">🇮🇳 INR</option>
+<option value="CAD">🇨🇦 CAD</option>
+</select>
 </div>
 <div>
 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Paid by *</label>
@@ -1567,11 +1600,12 @@ async function loadTrips() {
 async function createTrip() {
   const name = document.getElementById('tripName').value.trim();
   const members = document.getElementById('tripMembers').value.split(',').map(m => m.trim()).filter(Boolean);
+  const currency = document.getElementById('tripCurrency').value;
   if (!name || members.length < 2) { alert('Enter trip name and at least 2 members'); return; }
   try {
     const res = await fetch(apiUrl('/api/trips'), {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, members})
+      body: JSON.stringify({name, members, currency})
     });
     const data = await res.json();
     if (data.success) {
@@ -1610,8 +1644,8 @@ async function refreshTripDetail() {
 
     document.getElementById('tripDetailName').textContent = '✈️ ' + trip.name;
 
-    // Totals
-    const total = data.expenses.reduce((s, e) => s + e.amount, 0);
+    // Totals — use amount_base (all in trip base currency)
+    const total = data.expenses.reduce((s, e) => s + (e.amount_base || e.amount), 0);
     document.getElementById('tripTotal').textContent = c + total.toFixed(2);
     document.getElementById('tripPerPerson').textContent = c + (members.length ? (total / members.length).toFixed(2) : '0.00');
 
@@ -1620,7 +1654,8 @@ async function refreshTripDetail() {
     if (data.settlements.length === 0) {
       sl.innerHTML = '<div style="color:var(--green);font-size:14px">✅ All settled up!</div>';
     } else {
-      sl.innerHTML = data.settlements.map(s =>
+      sl.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Settlements in ${trip.currency}</div>` +
+        data.settlements.map(s =>
         `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;color:var(--text1)">
           <span style="font-weight:600">${s.from}</span>
           <span style="color:var(--text2)">→</span>
@@ -1665,13 +1700,20 @@ async function refreshTripDetail() {
     } else {
       el.innerHTML = data.expenses.map(e => {
         const splitNames = (e.split_among || members).join(', ');
+        const eCurrMap = {'USD':'$','INR':'₹','EUR':'€','GBP':'£','CAD':'C$','MYR':'RM'};
+        const ec = eCurrMap[e.currency] || e.currency + ' ';
+        const isConverted = e.currency !== trip.currency;
+        const baseAmt = e.amount_base || e.amount;
         return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-weight:600;font-size:14px;color:var(--text1)">${e.description}</div>
             <div style="font-size:11px;color:var(--text2);margin-top:3px">Paid by <b>${e.paid_by}</b> · Split: ${splitNames}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-weight:700;font-size:15px;color:var(--accent2)">${c}${e.amount.toFixed(2)}</div>
+            <div style="text-align:right">
+              <div style="font-weight:700;font-size:15px;color:var(--accent2)">${ec}${e.amount.toFixed(2)}</div>
+              ${isConverted ? `<div style="font-size:11px;color:var(--text2)">≈ ${c}${baseAmt.toFixed(2)}</div>` : ''}
+            </div>
             <button onclick="deleteTripExp('${e.id}')" style="background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;padding:4px">×</button>
           </div>
         </div>`;
@@ -1684,13 +1726,14 @@ async function addTripExpense() {
   const desc = document.getElementById('splitDesc').value.trim();
   const amt = parseFloat(document.getElementById('splitAmt').value) || 0;
   const paidBy = document.getElementById('splitPaidBy').value;
+  const currency = document.getElementById('splitCurrency').value;
   const checked = [...document.querySelectorAll('#splitAmongChecks input:checked')].map(c => c.value);
   if (!desc || amt <= 0) { alert('Enter description and amount'); return; }
   if (checked.length === 0) { alert('Select at least one person to split among'); return; }
   try {
     const res = await fetch(apiUrl(`/api/trips/${currentTripId}/expenses`), {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({description: desc, amount: amt, paid_by: paidBy, split_among: checked, date: new Date().toISOString().split('T')[0]})
+      body: JSON.stringify({description: desc, amount: amt, paid_by: paidBy, split_among: checked, currency, date: new Date().toISOString().split('T')[0]})
     });
     const data = await res.json();
     if (data.success) {
@@ -1885,7 +1928,7 @@ def get_trips():
     for t in trips:
         cur.execute("SELECT name FROM trip_members WHERE trip_id=%s ORDER BY id", (t['id'],))
         t['members'] = [m['name'] for m in cur.fetchall()]
-        cur.execute("SELECT COALESCE(SUM(amount),0) as total FROM trip_expenses WHERE trip_id=%s", (t['id'],))
+        cur.execute("SELECT COALESCE(SUM(amount_base),0) as total FROM trip_expenses WHERE trip_id=%s", (t['id'],))
         t['total'] = float(cur.fetchone()['total'])
     conn.close()
     return jsonify({"trips": trips})
@@ -1930,11 +1973,14 @@ def get_trip_expenses(trip_id):
     for e in expenses:
         try: e['split_among'] = json.loads(e['split_among']) if e['split_among'] else members
         except: e['split_among'] = members
+        # Ensure amount_base exists (for old records)
+        if not e.get('amount_base'):
+            e['amount_base'] = convert_currency(float(e['amount']), e.get('currency', 'USD'), trip['currency'])
 
-    # Calculate balances
+    # Calculate balances using base currency amounts
     balances = {m: 0.0 for m in members}
     for e in expenses:
-        amt = float(e['amount'])
+        amt = float(e['amount_base'])
         split_list = e['split_among'] if e['split_among'] else members
         per_person = amt / len(split_list)
         balances[e['paid_by']] = balances.get(e['paid_by'], 0) + amt
@@ -1972,13 +2018,22 @@ def add_trip_expense(trip_id):
         return jsonify({"error": "Description, amount, and paid_by required"}), 400
     exp_id = str(uuid.uuid4())
     split_among = json.dumps(data.get('split_among', []))
+    amount = float(data['amount'])
+    exp_currency = data.get('currency', 'USD').upper()
+
+    # Get trip base currency and convert
     conn = get_db(); cur = conn.cursor()
-    cur.execute("""INSERT INTO trip_expenses (id,trip_id,description,amount,paid_by,split_among,date,category)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (exp_id, trip_id, data['description'], float(data['amount']),
-                 data['paid_by'], split_among, data.get('date', ''), data.get('category', 'General')))
+    cur.execute("SELECT currency FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    base_currency = trip['currency'] if trip else 'USD'
+    amount_base = convert_currency(amount, exp_currency, base_currency)
+
+    cur.execute("""INSERT INTO trip_expenses (id,trip_id,description,amount,amount_base,currency,paid_by,split_among,date,category)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (exp_id, trip_id, data['description'], amount, amount_base,
+                 exp_currency, data['paid_by'], split_among, data.get('date', ''), data.get('category', 'General')))
     conn.commit(); conn.close()
-    return jsonify({"success": True, "id": exp_id})
+    return jsonify({"success": True, "id": exp_id, "amount_base": amount_base})
 
 @app.route('/api/trips/<trip_id>/expenses/<exp_id>', methods=['DELETE'])
 @login_required
