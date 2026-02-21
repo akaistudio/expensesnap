@@ -7,3 +7,4 @@ PyMuPDF==1.24.0
 psycopg2-binary==2.9.9
 pillow-heif==0.18.0
 requests==2.31.0
+bcrypt==4.1.2

@@ -11,6 +11,9 @@ Roles:
 """
 
 import os, json, base64, uuid, hashlib, secrets
+import bcrypt, smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import requests as http_requests
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -33,6 +36,9 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://localhost/expensesnap')
@@ -110,10 +116,64 @@ def init_db():
         except Exception:
             conn.rollback()
 
+    # OTP codes table
+    cur.execute("""CREATE TABLE IF NOT EXISTS otp_codes (
+        id SERIAL PRIMARY KEY, email TEXT NOT NULL, code TEXT NOT NULL,
+        purpose TEXT DEFAULT 'login', attempts INTEGER DEFAULT 0,
+        used BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL)""")
+    try:
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email, purpose, used)")
+    except: conn.rollback()
+
     conn.commit(); cur.close(); conn.close()
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def check_password(password, hashed):
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except (ValueError, AttributeError):
+        if hashlib.sha256(password.encode()).hexdigest() == hashed:
+            return True
+        return False
+
+def generate_otp():
+    return f"{secrets.randbelow(900000) + 100000}"
+
+def send_otp_email(email, code, purpose='login'):
+    smtp_host = os.environ.get('SMTP_HOST', '')
+    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+    smtp_user = os.environ.get('SMTP_USER', '')
+    smtp_pass = os.environ.get('SMTP_PASS', '')
+    smtp_from = os.environ.get('SMTP_FROM', smtp_user)
+    if not smtp_host or not smtp_user:
+        print(f"OTP for {email}: {code}")
+        return True
+    purpose_text = 'login' if purpose == 'login' else 'verification'
+    subject = f"Your ExpenseSnap {purpose_text} code: {code}"
+    html = f"""<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#10b981">ExpenseSnap</h2>
+        <p style="color:#666;font-size:14px">Your {purpose_text} code is:</p>
+        <div style="font-size:36px;font-weight:800;letter-spacing:8px;color:#1a1a2e;text-align:center;
+                    padding:20px;background:#f0f4ff;border-radius:12px;margin:16px 0">{code}</div>
+        <p style="color:#999;font-size:12px">This code expires in 5 minutes.</p>
+    </div>"""
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = smtp_from
+    msg['To'] = email
+    msg.attach(MIMEText(html, 'html'))
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Email send failed: {e}")
+        return False
 
 def register_with_hub(company_name, email, currency):
     hub = os.environ.get('FINANCESNAP_URL', 'https://snapsuite.up.railway.app')
@@ -308,9 +368,10 @@ def register():
 def login():
     data = request.json; email = data.get('email','').strip().lower(); password = data.get('password','')
     conn = get_db(); cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email=%s AND password_hash=%s", (email, hash_password(password)))
+    cur.execute("SELECT * FROM users WHERE email=%s", (email,))
     user = cur.fetchone()
-    if not user: conn.close(); return jsonify({"error": "Invalid email or password"}), 401
+    if not user or not check_password(password, user['password_hash']):
+        conn.close(); return jsonify({"error": "Invalid email or password"}), 401
     company_name = ''
     if user['company_id']:
         cur.execute("SELECT name FROM companies WHERE id=%s", (user['company_id'],)); c = cur.fetchone()
@@ -374,6 +435,81 @@ def get_me():
     if 'user_id' not in session: return jsonify({"logged_in": False}), 401
     return jsonify({"logged_in": True, "name": session.get('user_name'), "role": session.get('user_role'),
                     "company": session.get('company_name'), "company_id": session.get('company_id')})
+
+# --- OTP API ---
+@app.route('/api/auth/send-otp', methods=['POST'])
+def send_otp():
+    data = request.get_json()
+    email = (data.get('email') or '').strip().lower()
+    purpose = data.get('purpose', 'login')
+    if not email or '@' not in email:
+        return jsonify({"error": "Valid email required"}), 400
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""SELECT COUNT(*) as cnt FROM otp_codes
+                   WHERE email=%s AND created_at > NOW() - INTERVAL '15 minutes'""", (email,))
+    if cur.fetchone()['cnt'] >= 5:
+        conn.close()
+        return jsonify({"error": "Too many requests. Wait 15 minutes."}), 429
+    if purpose == 'login':
+        cur.execute('SELECT id FROM users WHERE email=%s', (email,))
+        if not cur.fetchone():
+            conn.close()
+            return jsonify({"error": "No account found with this email"}), 404
+    if purpose == 'register':
+        cur.execute('SELECT id FROM users WHERE email=%s', (email,))
+        if cur.fetchone():
+            conn.close()
+            return jsonify({"error": "Email already registered. Please sign in."}), 409
+    cur.execute("UPDATE otp_codes SET used=TRUE WHERE email=%s AND purpose=%s AND used=FALSE", (email, purpose))
+    code = generate_otp()
+    expires = datetime.utcnow() + timedelta(minutes=5)
+    cur.execute("INSERT INTO otp_codes (email, code, purpose, expires_at) VALUES (%s,%s,%s,%s)",
+                (email, code, purpose, expires))
+    conn.close()
+    if send_otp_email(email, code, purpose):
+        return jsonify({"success": True})
+    return jsonify({"error": "Failed to send email"}), 500
+
+@app.route('/api/auth/verify-login', methods=['POST'])
+def verify_login_otp():
+    data = request.get_json()
+    email = (data.get('email') or '').strip().lower()
+    code = (data.get('code') or '').strip()
+    if not email or not code or len(code) != 6:
+        return jsonify({"error": "Email and 6-digit code required"}), 400
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""SELECT * FROM otp_codes
+                   WHERE email=%s AND purpose='login' AND used=FALSE AND expires_at > NOW()
+                   ORDER BY created_at DESC LIMIT 1""", (email,))
+    otp_rec = cur.fetchone()
+    if not otp_rec:
+        conn.close()
+        return jsonify({"error": "Code expired. Request a new one."}), 400
+    if otp_rec['attempts'] >= 3:
+        cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (otp_rec['id'],))
+        conn.close()
+        return jsonify({"error": "Too many attempts. Request a new code."}), 429
+    cur.execute("UPDATE otp_codes SET attempts=attempts+1 WHERE id=%s", (otp_rec['id'],))
+    if not secrets.compare_digest(code, otp_rec['code']):
+        conn.close()
+        remaining = 2 - otp_rec['attempts']
+        return jsonify({"error": f"Invalid code. {remaining} attempt(s) remaining."}), 400
+    cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (otp_rec['id'],))
+    cur.execute('SELECT * FROM users WHERE email=%s', (email,))
+    user = cur.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({"error": "User not found"}), 404
+    company_name = ''
+    if user['company_id']:
+        cur.execute("SELECT name FROM companies WHERE id=%s", (user['company_id'],))
+        c = cur.fetchone()
+        company_name = c['name'] if c else ''
+    conn.close()
+    session.update({'user_id': user['id'], 'user_name': user['name'], 'user_role': user['role'],
+                    'company_id': user['company_id'], 'company_name': company_name or 'All Companies'})
+    session.permanent = True
+    return jsonify({"success": True, "name": user['name'], "role": user['role'], "company": company_name})
 
 # ── Company Management ─────────────────────────────────────────
 @app.route('/api/companies', methods=['GET'])
