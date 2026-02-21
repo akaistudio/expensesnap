@@ -511,6 +511,78 @@ def verify_login_otp():
     session.permanent = True
     return jsonify({"success": True, "name": user['name'], "role": user['role'], "company": company_name})
 
+@app.route('/api/auth/otp-register', methods=['POST'])
+def otp_register():
+    data = request.get_json()
+    email = (data.get('email') or '').strip().lower()
+    code = (data.get('code') or '').strip()
+    name = (data.get('name') or '').strip()
+    password = data.get('password', '')
+    invite_code = (data.get('invite_code') or '').strip()
+
+    if not email or not code or len(code) != 6:
+        return jsonify({"error": "Email and 6-digit code required"}), 400
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    conn = get_db(); cur = conn.cursor()
+
+    # Verify OTP
+    cur.execute("""SELECT * FROM otp_codes
+                   WHERE email=%s AND purpose='register' AND used=FALSE AND expires_at > NOW()
+                   ORDER BY created_at DESC LIMIT 1""", (email,))
+    otp_rec = cur.fetchone()
+    if not otp_rec:
+        conn.close()
+        return jsonify({"error": "Code expired. Request a new one."}), 400
+    if otp_rec['attempts'] >= 3:
+        cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (otp_rec['id'],))
+        conn.close()
+        return jsonify({"error": "Too many attempts. Request a new code."}), 429
+    cur.execute("UPDATE otp_codes SET attempts=attempts+1 WHERE id=%s", (otp_rec['id'],))
+    if not secrets.compare_digest(code, otp_rec['code']):
+        conn.close()
+        remaining = 2 - otp_rec['attempts']
+        return jsonify({"error": f"Invalid code. {remaining} attempt(s) remaining."}), 400
+    cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (otp_rec['id'],))
+
+    # Check if email already exists
+    cur.execute("SELECT id FROM users WHERE email=%s", (email,))
+    if cur.fetchone():
+        conn.close()
+        return jsonify({"error": "Email already registered. Please sign in."}), 409
+
+    # Register user (same logic as existing register)
+    cur.execute("SELECT COUNT(*) as cnt FROM users"); user_count = cur.fetchone()['cnt']
+    if user_count == 0:
+        user_id = str(uuid.uuid4())
+        cur.execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (%s,%s,%s,%s,%s)",
+                     (user_id, name, email, hash_password(password), 'super_admin'))
+        conn.commit(); conn.close()
+        session.update({'user_id': user_id, 'user_name': name, 'user_role': 'super_admin', 'company_id': None, 'company_name': 'All Companies'})
+        session.permanent = True
+        return jsonify({"success": True, "role": "super_admin"})
+    else:
+        if not invite_code:
+            conn.close()
+            return jsonify({"error": "Invite code required. Ask your admin for one."}), 400
+        cur.execute("SELECT * FROM invite_codes WHERE code = %s AND used_by IS NULL", (invite_code,))
+        invite = cur.fetchone()
+        if not invite:
+            conn.close()
+            return jsonify({"error": "Invalid or already used invite code"}), 400
+        user_id = str(uuid.uuid4()); role = invite['role']; company_id = invite['company_id']
+        cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id) VALUES (%s,%s,%s,%s,%s,%s)",
+                     (user_id, name, email, hash_password(password), role, company_id))
+        cur.execute("UPDATE invite_codes SET used_by=%s, used_at=%s WHERE code=%s", (user_id, datetime.now().isoformat(), invite_code))
+        cur.execute("SELECT name FROM companies WHERE id=%s", (company_id,)); company = cur.fetchone()
+        conn.commit(); conn.close(); company_name = company['name'] if company else ''
+        session.update({'user_id': user_id, 'user_name': name, 'user_role': role, 'company_id': company_id, 'company_name': company_name})
+        session.permanent = True
+        return jsonify({"success": True, "role": role})
+
 # ── Company Management ─────────────────────────────────────────
 @app.route('/api/companies', methods=['GET'])
 @login_required
@@ -950,100 +1022,149 @@ a{text-decoration:none;color:inherit}
 LOGIN_HTML = r"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>ExpenseSnap - Sign In</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>ExpenseSnap — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
---accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B}
+:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;--accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
-display:flex;align-items:center;justify-content:center}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-padding:48px;width:100%;max-width:420px;margin:20px}
-.logo{font-size:28px;font-weight:700;text-align:center;margin-bottom:8px;
-background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.subtitle{text-align:center;color:var(--text2);font-size:14px;margin-bottom:32px}
-label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px;margin-top:16px}
-input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);
-border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
-input:focus{border-color:var(--accent)}
-.btn{width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:10px;
-font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;transition:all 0.2s}
-.btn:hover{background:#5A4BD1}
-.switch{text-align:center;margin-top:20px;font-size:13px;color:var(--text2)}
-.switch a{color:var(--accent2);text-decoration:none}
-.error{background:rgba(255,107,107,0.1);color:var(--red);padding:12px;border-radius:10px;font-size:13px;margin-top:16px;display:none}
-.suite{margin-top:24px;text-align:center;font-size:12px;color:var(--text2)}.suite a{color:var(--text2);text-decoration:none;font-weight:600}.suite a:hover{color:var(--accent2)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
+.container{width:100%;max-width:440px;padding:24px}
+.logo{text-align:center;margin-bottom:32px}
+.logo .icon{width:56px;height:56px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6C5CE7,#00D2A0);margin-bottom:12px}
+.logo h1{font-size:28px;font-weight:800;color:#fff}.logo h1 span{color:var(--accent)}
+.logo p{font-size:14px;color:var(--text2);margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px}
+.card h2{font-size:20px;font-weight:700;margin-bottom:6px;color:#fff}
+.card .sub{font-size:13px;color:var(--text2);margin-bottom:20px}
+.fg{margin-bottom:16px}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.fg input,.fg select{width:100%;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:#fff;font-size:14px;font-family:'DM Sans',sans-serif}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--accent)}
+.otp-row{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+.otp-row input{width:48px;height:56px;text-align:center;font-size:24px;font-weight:800;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:#fff;font-family:'DM Sans',sans-serif;outline:none;transition:.2s}
+.otp-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,92,231,.15)}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:'DM Sans',sans-serif;background:linear-gradient(135deg,#6C5CE7,#5A4BD1);color:#fff;transition:.2s}
+.btn:hover{opacity:.9;transform:translateY(-1px)}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.switch{text-align:center;margin-top:16px;font-size:14px;color:var(--text2)}.switch a{color:var(--accent2);text-decoration:none;font-weight:600;cursor:pointer}
+.flash{padding:12px;border-radius:10px;font-size:13px;margin-bottom:16px}
+.flash.error{background:rgba(255,107,107,.1);color:var(--red);border:1px solid rgba(255,107,107,.2)}
+.flash.success{background:rgba(0,210,160,.1);color:var(--green);border:1px solid rgba(0,210,160,.2)}
+.suite{margin-top:24px;text-align:center;font-size:12px;color:var(--text2)}.suite a{color:var(--text2);text-decoration:none;font-weight:600}.suite a:hover{color:var(--accent)}
+.hidden{display:none}
+.timer{text-align:center;font-size:13px;color:var(--text2);margin-top:10px}
+.timer a{color:var(--accent2);cursor:pointer;text-decoration:none;font-weight:600}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lock-icon{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-top:12px;justify-content:center}
 </style></head><body>
-<div class="card">
-<div class="logo">ExpenseSnap</div>
-<div class="subtitle">Sign in to your account</div>
-<div class="error" id="error"></div>
-<form onsubmit="handleLogin(event)">
-<label>Email</label><input type="email" id="email" required placeholder="you@company.com">
-<label>Password</label><input type="password" id="password" required placeholder="Enter password">
-<button type="submit" class="btn">Sign In</button>
-</form>
-<div class="switch">New here? <a href="/register">Create an account</a></div>
-<div class="switch" style="margin-top:10px"><a href="/forgot-password">Forgot password?</a></div>
-<div class="suite"><a href="/welcome">← Back to ExpenseSnap home</a></div>
+<div class="container">
+<div class="logo"><div class="icon">E</div><h1>Expense<span>Snap</span></h1><p>AI receipt scanning & trip splitting</p></div>
+<div id="alertBox"></div>
+<div id="loginStep1" class="card">
+<h2>Sign In</h2>
+<p class="sub">Enter your email to receive a 6-digit login code</p>
+<div class="fg"><label>Email</label><input type="email" id="loginEmail" required placeholder="you@company.com" onkeydown="if(event.key==='Enter')sendLoginOTP()"></div>
+<button class="btn" id="loginSendBtn" onclick="sendLoginOTP()">Send Login Code</button>
+<div class="switch">New here? <a href="/register">Create account</a></div>
+</div>
+<div id="loginStep2" class="card hidden">
+<h2>Enter Code</h2>
+<p class="sub">Enter the 6-digit code sent to <strong id="loginEmailDisplay"></strong></p>
+<div class="otp-row" id="loginOtpRow"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"></div>
+<button class="btn" id="loginVerifyBtn" onclick="verifyLoginOTP()">Sign In</button>
+<div class="timer" id="loginTimer">Resend code in <span id="loginCountdown">60</span>s</div>
+<div class="timer hidden" id="loginResend"><a onclick="sendLoginOTP()">Resend code</a> &middot; <a onclick="showStep('loginStep1')">Change email</a></div>
+</div>
+<div class="suite"><a href="/welcome">&larr; Back to ExpenseSnap home</a></div>
+<div class="lock-icon">&#128274; Secured with email OTP verification</div>
 </div>
 <script>
-async function handleLogin(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
-try{const res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});
-const data=await res.json();if(data.success){window.location.href='/'}
-else{err.textContent=data.error;err.style.display='block'}}
-catch(e){err.textContent='Connection error';err.style.display='block'}}
+document.querySelectorAll('.otp-row').forEach(row=>{const inputs=row.querySelectorAll('.otp-digit');inputs.forEach((inp,i)=>{inp.addEventListener('input',e=>{const v=e.target.value.replace(/\D/g,'');e.target.value=v.charAt(0)||'';if(v&&i<5)inputs[i+1].focus();});inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0){inputs[i-1].focus();inputs[i-1].value='';}});inp.addEventListener('paste',e=>{e.preventDefault();const p=(e.clipboardData.getData('text')||'').replace(/\D/g,'').slice(0,6);p.split('').forEach((c,j)=>{if(inputs[j])inputs[j].value=c;});if(p.length>=6)inputs[5].focus();});});});
+function getOTP(rowId){return Array.from(document.getElementById(rowId).querySelectorAll('.otp-digit')).map(i=>i.value).join('');}
+function clearOTP(rowId){document.getElementById(rowId).querySelectorAll('.otp-digit').forEach(i=>i.value='');}
+function showAlert(msg,type){document.getElementById('alertBox').innerHTML='<div class="flash '+type+'">'+msg+'</div>';}
+function showStep(id){document.querySelectorAll('.card').forEach(c=>c.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
+function startTimer(cntId,timerId,resendId,sec){let r=sec;const el=document.getElementById(cntId);document.getElementById(timerId).classList.remove('hidden');document.getElementById(resendId).classList.add('hidden');el.textContent=r;const iv=setInterval(()=>{r--;el.textContent=r;if(r<=0){clearInterval(iv);document.getElementById(timerId).classList.add('hidden');document.getElementById(resendId).classList.remove('hidden');}},1000);}
+let loginEmailVal='';
+async function sendLoginOTP(){const email=document.getElementById('loginEmail').value.trim().toLowerCase();if(!email){showAlert('Please enter your email','error');return;}loginEmailVal=email;const btn=document.getElementById('loginSendBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Sending...';try{const r=await fetch('/api/auth/send-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,purpose:'login'})});const d=await r.json();if(d.success){document.getElementById('loginEmailDisplay').textContent=email;showStep('loginStep2');showAlert('Code sent to '+email,'success');startTimer('loginCountdown','loginTimer','loginResend',60);setTimeout(()=>document.querySelector('#loginStep2 .otp-digit').focus(),100);}else{showAlert(d.error||'Failed to send code','error');}}catch(e){showAlert('Connection error','error');}btn.disabled=false;btn.innerHTML='Send Login Code';}
+async function verifyLoginOTP(){const code=getOTP('loginOtpRow');if(code.length!==6){showAlert('Enter the full 6-digit code','error');return;}const btn=document.getElementById('loginVerifyBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Verifying...';try{const r=await fetch('/api/auth/verify-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:loginEmailVal,code,purpose:'login'})});const d=await r.json();if(d.success){window.location.href='/';}else{showAlert(d.error||'Invalid code','error');clearOTP('loginOtpRow');}}catch(e){showAlert('Connection error','error');}btn.disabled=false;btn.innerHTML='Sign In';}
 </script></body></html>"""
 
-# ── Register HTML ──────────────────────────────────────────────
+# ── Register HTML (OTP-verified) ──────────────────────────────
 REGISTER_HTML = r"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>ExpenseSnap - Create Account</title>
+<title>ExpenseSnap — Create Account</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
---accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B}
+:root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;--accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-.hdr{text-align:center;margin-bottom:24px}
-.hdr h1{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hdr p{font-size:14px;color:var(--text2);margin-top:6px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:420px}
-.card h2{font-size:20px;font-weight:700;margin-bottom:16px;color:#fff;text-align:center}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
+.container{width:100%;max-width:440px;padding:24px}
+.logo{text-align:center;margin-bottom:32px}
+.logo .icon{width:56px;height:56px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6C5CE7,#00D2A0);margin-bottom:12px}
+.logo h1{font-size:28px;font-weight:800;color:#fff}.logo h1 span{color:var(--accent)}
+.logo p{font-size:14px;color:var(--text2);margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px}
+.card h2{font-size:20px;font-weight:700;margin-bottom:6px;color:#fff}
+.card .sub{font-size:13px;color:var(--text2);margin-bottom:20px}
 .note{background:rgba(108,92,231,0.1);color:var(--accent2);padding:12px;border-radius:10px;font-size:12px;margin-bottom:16px;line-height:1.5}
-label{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;margin-top:14px}
-input{width:100%;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:#fff;font-size:14px;font-family:inherit;outline:none}
-input:focus{border-color:var(--accent)}
-.btn{width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:10px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;margin-top:20px}
-.btn:hover{background:#5A4BD1}
-.sw{text-align:center;margin-top:14px;font-size:14px;color:var(--text2)}.sw a{color:var(--accent2);text-decoration:none;font-weight:600}
-.err{background:rgba(255,107,107,0.1);color:var(--red);padding:12px;border-radius:10px;font-size:13px;margin-top:14px;display:none}
-.suite{margin-top:20px;font-size:12px;color:var(--text2);text-align:center}
+.fg{margin-bottom:16px}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.fg input,.fg select{width:100%;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:#fff;font-size:14px;font-family:'DM Sans',sans-serif}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--accent)}
+.otp-row{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+.otp-row input{width:48px;height:56px;text-align:center;font-size:24px;font-weight:800;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:#fff;font-family:'DM Sans',sans-serif;outline:none;transition:.2s}
+.otp-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,92,231,.15)}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:'DM Sans',sans-serif;background:linear-gradient(135deg,#6C5CE7,#5A4BD1);color:#fff;transition:.2s}
+.btn:hover{opacity:.9;transform:translateY(-1px)}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.switch{text-align:center;margin-top:16px;font-size:14px;color:var(--text2)}.switch a{color:var(--accent2);text-decoration:none;font-weight:600;cursor:pointer}
+.flash{padding:12px;border-radius:10px;font-size:13px;margin-bottom:16px}
+.flash.error{background:rgba(255,107,107,.1);color:var(--red);border:1px solid rgba(255,107,107,.2)}
+.flash.success{background:rgba(0,210,160,.1);color:var(--green);border:1px solid rgba(0,210,160,.2)}
+.suite{margin-top:24px;text-align:center;font-size:12px;color:var(--text2)}.suite a{color:var(--text2);text-decoration:none;font-weight:600}.suite a:hover{color:var(--accent)}
+.hidden{display:none}
+.timer{text-align:center;font-size:13px;color:var(--text2);margin-top:10px}
+.timer a{color:var(--accent2);cursor:pointer;text-decoration:none;font-weight:600}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lock-icon{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-top:12px;justify-content:center}
 </style></head><body>
-<div class="hdr"><h1>ExpenseSnap</h1><p>AI receipt scanning & trip splitting</p></div>
-<div class="card"><h2>Create Account</h2>
+<div class="container">
+<div class="logo"><div class="icon">E</div><h1>Expense<span>Snap</span></h1><p>AI receipt scanning & trip splitting</p></div>
+<div id="alertBox"></div>
+<div id="regStep1" class="card">
+<h2>Create Account</h2>
+<p class="sub">We'll send a 6-digit code to verify your email</p>
 <div class="note">First person to register becomes <strong>Super Admin</strong> (no invite needed). Everyone else needs an invite code.</div>
-<div class="err" id="error"></div>
-<form onsubmit="handleRegister(event)">
-<label>Full Name</label><input type="text" id="name" required placeholder="Your name">
-<label>Email</label><input type="email" id="email" required placeholder="you@company.com">
-<label>Password</label><input type="password" id="password" required placeholder="Min 6 characters" minlength="6">
-<label>Invite Code <span style="color:var(--text2)">(not needed for first user)</span></label>
-<input type="text" id="invite_code" placeholder="Ask your admin for this">
-<button type="submit" class="btn">Create Account</button></form>
-<div class="sw">Already have an account? <a href="/login">Sign in</a></div></div>
-<div class="suite">Part of <a href="https://snapsuite.up.railway.app">SnapSuite</a> — 6 apps for your entire business</div>
+<div class="fg"><label>Full Name</label><input type="text" id="regName" required placeholder="Your name"></div>
+<div class="fg"><label>Email</label><input type="email" id="regEmail" required placeholder="you@company.com"></div>
+<div class="fg"><label>Password</label><input type="password" id="regPassword" required minlength="8" placeholder="Min 8 characters"></div>
+<div class="fg"><label>Invite Code <span style="color:var(--text2)">(not needed for first user)</span></label><input type="text" id="regInvite" placeholder="Ask your admin for this"></div>
+<button class="btn" id="regSendBtn" onclick="sendRegOTP()">Send Verification Code</button>
+<div class="switch">Already have an account? <a href="/login">Sign in</a></div>
+</div>
+<div id="regStep2" class="card hidden">
+<h2>Verify Email</h2>
+<p class="sub">Enter the 6-digit code sent to <strong id="regEmailDisplay"></strong></p>
+<div class="otp-row" id="regOtpRow"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"><input type="text" maxlength="1" class="otp-digit" inputmode="numeric"></div>
+<button class="btn" id="regVerifyBtn" onclick="verifyRegOTP()">Create Account</button>
+<div class="timer" id="regTimer">Resend code in <span id="regCountdown">60</span>s</div>
+<div class="timer hidden" id="regResend"><a onclick="sendRegOTP()">Resend code</a> &middot; <a onclick="showStep('regStep1')">Change email</a></div>
+</div>
+<div class="suite"><a href="/welcome">&larr; Back to ExpenseSnap home</a></div>
+<div class="lock-icon">&#128274; Secured with email OTP verification</div>
+</div>
 <script>
-async function handleRegister(e){e.preventDefault();const err=document.getElementById('error');err.style.display='none';
-try{const res=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({name:document.getElementById('name').value,email:document.getElementById('email').value,
-password:document.getElementById('password').value,invite_code:document.getElementById('invite_code').value})});
-const data=await res.json();if(data.success){window.location.href='/'}
-else{err.textContent=data.error;err.style.display='block'}}
-catch(e){err.textContent='Connection error';err.style.display='block'}}
+document.querySelectorAll('.otp-row').forEach(row=>{const inputs=row.querySelectorAll('.otp-digit');inputs.forEach((inp,i)=>{inp.addEventListener('input',e=>{const v=e.target.value.replace(/\D/g,'');e.target.value=v.charAt(0)||'';if(v&&i<5)inputs[i+1].focus();});inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0){inputs[i-1].focus();inputs[i-1].value='';}});inp.addEventListener('paste',e=>{e.preventDefault();const p=(e.clipboardData.getData('text')||'').replace(/\D/g,'').slice(0,6);p.split('').forEach((c,j)=>{if(inputs[j])inputs[j].value=c;});if(p.length>=6)inputs[5].focus();});});});
+function getOTP(rowId){return Array.from(document.getElementById(rowId).querySelectorAll('.otp-digit')).map(i=>i.value).join('');}
+function clearOTP(rowId){document.getElementById(rowId).querySelectorAll('.otp-digit').forEach(i=>i.value='');}
+function showAlert(msg,type){document.getElementById('alertBox').innerHTML='<div class="flash '+type+'">'+msg+'</div>';}
+function showStep(id){document.querySelectorAll('.card').forEach(c=>c.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
+function startTimer(cntId,timerId,resendId,sec){let r=sec;const el=document.getElementById(cntId);document.getElementById(timerId).classList.remove('hidden');document.getElementById(resendId).classList.add('hidden');el.textContent=r;const iv=setInterval(()=>{r--;el.textContent=r;if(r<=0){clearInterval(iv);document.getElementById(timerId).classList.add('hidden');document.getElementById(resendId).classList.remove('hidden');}},1000);}
+let regData={};
+async function sendRegOTP(){const name=document.getElementById('regName').value.trim(),email=document.getElementById('regEmail').value.trim().toLowerCase(),pw=document.getElementById('regPassword').value,invite=document.getElementById('regInvite').value.trim();if(!name){showAlert('Enter your name','error');return;}if(!email){showAlert('Enter email','error');return;}if(pw.length<8){showAlert('Password must be at least 8 characters','error');return;}regData={name,email,password:pw,invite_code:invite};const btn=document.getElementById('regSendBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Sending...';try{const r=await fetch('/api/auth/send-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,purpose:'register'})});const d=await r.json();if(d.success){document.getElementById('regEmailDisplay').textContent=email;showStep('regStep2');showAlert('Code sent to '+email,'success');startTimer('regCountdown','regTimer','regResend',60);setTimeout(()=>document.querySelector('#regStep2 .otp-digit').focus(),100);}else{showAlert(d.error||'Failed','error');}}catch(e){showAlert('Connection error','error');}btn.disabled=false;btn.innerHTML='Send Verification Code';}
+async function verifyRegOTP(){const code=getOTP('regOtpRow');if(code.length!==6){showAlert('Enter the full 6-digit code','error');return;}const btn=document.getElementById('regVerifyBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Creating...';try{const r=await fetch('/api/auth/otp-register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...regData,code})});const d=await r.json();if(d.success){window.location.href='/';}else{showAlert(d.error||'Failed','error');clearOTP('regOtpRow');}}catch(e){showAlert('Connection error','error');}btn.disabled=false;btn.innerHTML='Create Account';}
 </script></body></html>"""
 
 # ── Forgot Password HTML ───────────────────────────────────────
