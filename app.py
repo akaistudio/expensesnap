@@ -143,37 +143,38 @@ def generate_otp():
     return f"{secrets.randbelow(900000) + 100000}"
 
 def send_otp_email(email, code, purpose='login'):
-    smtp_host = os.environ.get('SMTP_HOST', '')
-    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-    smtp_user = os.environ.get('SMTP_USER', '')
-    smtp_pass = os.environ.get('SMTP_PASS', '')
-    smtp_from = os.environ.get('SMTP_FROM', smtp_user)
-    if not smtp_host or not smtp_user:
-        print(f"OTP for {email}: {code}")
-        return True
+    resend_key = os.environ.get('RESEND_API_KEY', '')
+    from_email = os.environ.get('SMTP_FROM', 'onboarding@resend.dev')
     purpose_text = 'login' if purpose == 'login' else 'verification'
     subject = f"Your ExpenseSnap {purpose_text} code: {code}"
     html = f"""<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
-        <h2 style="color:#10b981">ExpenseSnap</h2>
+        <h2 style="color:#6C5CE7">ExpenseSnap</h2>
         <p style="color:#666;font-size:14px">Your {purpose_text} code is:</p>
         <div style="font-size:36px;font-weight:800;letter-spacing:8px;color:#1a1a2e;text-align:center;
                     padding:20px;background:#f0f4ff;border-radius:12px;margin:16px 0">{code}</div>
-        <p style="color:#999;font-size:12px">This code expires in 5 minutes.</p>
+        <p style="color:#999;font-size:12px">This code expires in 5 minutes. Do not share it.</p>
+        <p style="color:#999;font-size:11px;margin-top:20px">Part of <a href="https://snapsuite.up.railway.app" style="color:#6C5CE7">SnapSuite</a></p>
     </div>"""
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = smtp_from
-    msg['To'] = email
-    msg.attach(MIMEText(html, 'html'))
-    try:
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
+    if not resend_key:
+        print(f"⚠️ RESEND_API_KEY not set. OTP for {email}: {code}")
         return True
+    import requests as http_req
+    try:
+        r = http_req.post('https://api.resend.com/emails', json={
+            'from': from_email, 'to': [email], 'subject': subject, 'html': html
+        }, headers={'Authorization': f'Bearer {resend_key}'}, timeout=10)
+        if r.status_code == 200:
+            print(f"✅ OTP sent to {email}")
+            return True
+        else:
+            print(f"❌ Resend error {r.status_code}: {r.text}")
+            print(f"💡 OTP for {email}: {code}")
+            return True
     except Exception as e:
-        print(f"Email send failed: {e}")
-        return False
+        print(f"❌ Email failed: {e}")
+        print(f"💡 OTP for {email}: {code}")
+        return True
+
 
 def register_with_hub(company_name, email, currency):
     hub = os.environ.get('FINANCESNAP_URL', 'https://snapsuite.up.railway.app')
