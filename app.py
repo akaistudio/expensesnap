@@ -935,8 +935,9 @@ def export_excel():
     return send_file(buf, download_name=f"expenses_{today}.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/')
-@login_required
 def index():
+    if 'user_id' not in session:
+        return redirect('/welcome')
     return render_template_string(MAIN_HTML, user_name=session.get('user_name',''),
                                   user_role=session.get('user_role','member'), company_name=session.get('company_name',''),
                                   company_id=session.get('company_id',''))
