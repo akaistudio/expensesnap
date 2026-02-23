@@ -36,7 +36,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'expensesnap-prod-2026')
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
