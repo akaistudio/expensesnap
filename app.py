@@ -153,7 +153,7 @@ def send_otp_email(email, code, purpose='login'):
         <div style="font-size:36px;font-weight:800;letter-spacing:8px;color:#1a1a2e;text-align:center;
                     padding:20px;background:#f0f4ff;border-radius:12px;margin:16px 0">{code}</div>
         <p style="color:#999;font-size:12px">This code expires in 5 minutes. Do not share it.</p>
-        <p style="color:#999;font-size:11px;margin-top:20px">Part of <a href="https://snapsuite.up.railway.app" style="color:#6C5CE7">SnapSuite</a></p>
+        <p style="color:#999;font-size:11px;margin-top:20px">Part of <a href="https://snapsuite.up.railway.app" style="color:#6C5CE7">Varnam Suite</a></p>
     </div>"""
     if not resend_key:
         print(f"⚠️ RESEND_API_KEY not set. OTP for {email}: {code}")
@@ -312,7 +312,7 @@ def generate_excel(expenses, company_name=""):
 @app.route('/demo')
 def demo_auto_login():
     conn = get_db(); cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email='demo@snapsuite.app'")
+    cur.execute("SELECT * FROM users WHERE email='demo@varnam.app'")
     user = cur.fetchone(); conn.close()
     if user:
         session.update({'user_id': user['id'], 'user_name': user['name'], 'user_role': user['role'],
@@ -610,7 +610,7 @@ def create_company():
     cur.execute("INSERT INTO companies (id,name,home_currency) VALUES (%s,%s,%s)", (company_id, name, home_currency))
     cur.execute("INSERT INTO invite_codes (code,company_id,role,created_by) VALUES (%s,%s,%s,%s)", (code, company_id, 'company_admin', session['user_id']))
     conn.commit(); conn.close()
-    # Register with SnapSuite hub
+    # Register with Varnam Suite hub
     email = session.get('user_email', '')
     if not email:
         c2 = get_db(); cr2 = c2.cursor()
@@ -1017,7 +1017,7 @@ a{text-decoration:none;color:inherit}
 <section style="padding:40px 24px 80px;text-align:center">
 <a href="/login" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff !important;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
 <a href="/register" style="display:inline-block;padding:18px 48px;background:transparent;color:var(--text) !important;border:1.5px solid var(--border);border-radius:12px;font-size:17px;font-weight:600;margin:0 8px 10px">Create Free Account</a>
-<div style="margin-top:20px;font-size:12px;color:var(--text2)">Part of <a href="https://snapsuite.up.railway.app" style="color:var(--accent2)">SnapSuite</a> — 6 apps for your entire business</div>
+<div style="margin-top:20px;font-size:12px;color:var(--text2)">Part of <a href="https://snapsuite.up.railway.app" style="color:var(--accent2)">Varnam Suite</a> — 6 apps for your entire business</div>
 </section>
 </body></html>"""
 
@@ -1439,7 +1439,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div class="topbar">
 <a href="/login" class="logo" style="text-decoration:none">Expense<span>Snap</span></a>
 <div class="topbar-right">
-<a href="https://snapsuite.up.railway.app" target="_blank" style="font-size:12px;color:#8B95B0;text-decoration:none;padding:6px 12px;border:1px solid #2A3148;border-radius:6px;font-weight:600">← SnapSuite</a><div class="app-switch" style="position:relative;display:inline-block"><button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'" style="font-size:14px;background:none;border:1px solid #2A3148;border-radius:6px;padding:5px 10px;color:#8B95B0;cursor:pointer" title="Switch App">⊞</button><div style="display:none;position:absolute;right:0;top:32px;background:#141926;border:1px solid #2A3148;border-radius:10px;padding:8px;min-width:180px;z-index:200;box-shadow:0 8px 30px rgba(0,0,0,.5)"><a href="https://invoicesnap.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">📄 InvoiceSnap</a><a href="https://contractsnap-app.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">📋 ContractSnap</a><a href="https://payslipsnap.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">💰 PayslipSnap</a><a href="https://proposalsnap.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">🎯 ProposalSnap</a></div></div>
+<a href="https://snapsuite.up.railway.app" target="_blank" style="font-size:12px;color:#8B95B0;text-decoration:none;padding:6px 12px;border:1px solid #2A3148;border-radius:6px;font-weight:600">← Varnam Suite</a><div class="app-switch" style="position:relative;display:inline-block"><button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'" style="font-size:14px;background:none;border:1px solid #2A3148;border-radius:6px;padding:5px 10px;color:#8B95B0;cursor:pointer" title="Switch App">⊞</button><div style="display:none;position:absolute;right:0;top:32px;background:#141926;border:1px solid #2A3148;border-radius:10px;padding:8px;min-width:180px;z-index:200;box-shadow:0 8px 30px rgba(0,0,0,.5)"><a href="https://invoicesnap.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">📄 InvoiceSnap</a><a href="https://contractsnap-app.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">📋 ContractSnap</a><a href="https://payslipsnap.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">💰 PayslipSnap</a><a href="https://proposalsnap.up.railway.app" style="display:block;padding:8px 12px;color:#E8ECF4;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500" onmouseover="this.style.background='#2A3148'" onmouseout="this.style.background='none'">🎯 ProposalSnap</a></div></div>
 <span class="company-badge">{{ company_name }}</span>
 <div class="user-badge">👤 <strong>{{ user_name }}</strong></div>
 <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📥 Export</button>
@@ -2447,7 +2447,7 @@ def scan_trip_receipt(trip_id):
         "currency": exp_currency, "paid_by": paid_by, "category": data.get('category', 'Other'),
         "date": data.get('date', ''), "items": data.get('items', '')}})
 
-# --- External API for SnapSuite ---
+# --- External API for Varnam Suite ---
 @app.route('/api/expenses/external')
 def api_expenses_external():
     api_key = request.headers.get('X-API-Key', '')
@@ -2572,10 +2572,10 @@ def seed_test_data():
 @app.route('/api/demo-setup', methods=['POST'])
 def demo_setup():
     secret = request.headers.get('X-Demo-Secret', '')
-    if secret != 'snapsuite-demo-2026': return jsonify({'error': 'Unauthorized'}), 403
+    if secret != 'varnam-demo-2026': return jsonify({'error': 'Unauthorized'}), 403
     import uuid
     conn = get_db(); cur = conn.cursor()
-    demo_email = 'demo@snapsuite.app'
+    demo_email = 'demo@varnam.app'
     cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
     user = cur.fetchone()
     if not user:
