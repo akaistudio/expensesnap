@@ -1537,20 +1537,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 
 <div id="upload" class="section active">
 
-<div id="modeSelector">
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
-<div onclick="showUploadMode('business')" id="modeBusiness" style="background:var(--card);border:2px solid var(--accent);border-radius:14px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center">
-<div style="font-size:32px;margin-bottom:8px">🏢</div>
-<div style="font-weight:700;font-size:15px;color:var(--text1)">Business Expenses</div>
-<div style="font-size:12px;color:var(--text2);margin-top:4px">Scan receipts • Manual entry • Track company costs</div>
-</div>
-<div onclick="showUploadMode('trip')" id="modeTrip" style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center">
-<div style="font-size:32px;margin-bottom:8px">✈️</div>
-<div style="font-weight:700;font-size:15px;color:var(--text1)">SplitSnap</div>
-<div style="font-size:12px;color:var(--text2);margin-top:4px">Like Splitwise — split bills with friends • Multi-currency • Who owes whom</div>
-</div>
-</div>
-</div>
+
 
 <div id="businessMode">
 <div class="upload-zone" id="dropZone">
@@ -1585,25 +1572,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 </div></div>
 </div>
 
-<div id="tripMode" style="display:none">
-<div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-primary btn-sm" onclick="showNewTrip()">+ New Trip</button></div>
-<div id="newTripForm" style="display:none;background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px">
-<h4 style="margin-bottom:14px;color:var(--text1)">Create New Trip</h4>
-<div style="display:grid;gap:10px">
-<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Trip Name *</label>
-<input type="text" id="tripName" placeholder="e.g. Ireland & Scotland 2026" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
-<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Members * (comma separated)</label>
-<input type="text" id="tripMembers" placeholder="e.g. Priya, Sarah, Mei, Lisa" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
-<div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Settle in (base currency)</label>
-<select id="tripCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-<option value="EUR" selected>🇪🇺 EUR</option><option value="GBP">🇬🇧 GBP</option><option value="USD">🇺🇸 USD</option><option value="MYR">🇲🇾 MYR</option><option value="INR">🇮🇳 INR</option><option value="CAD">🇨🇦 CAD</option></select>
-<div style="font-size:11px;color:var(--text2);margin-top:4px">All expenses converted to this for final settlements</div></div>
-<div style="display:flex;gap:10px;justify-content:flex-end">
-<button class="btn btn-ghost btn-sm" onclick="hideNewTrip()">Cancel</button>
-<button class="btn btn-primary btn-sm" onclick="createTrip()">Create Trip</button></div>
-</div></div>
-<div id="tripList"></div>
-</div>
+
 
 <div id="splitDetail" style="display:none">
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -1907,84 +1876,9 @@ async function deleteExpense(id) {
 
 // Team
 // ── Mode switching ──
-function showUploadMode(mode) {
-  document.getElementById('businessMode').style.display = mode === 'business' ? '' : 'none';
-  document.getElementById('tripMode').style.display = mode === 'trip' ? '' : 'none';
-  document.getElementById('splitDetail').style.display = 'none';
-  document.getElementById('modeSelector').style.display = '';
-  document.getElementById('modeBusiness').style.borderColor = mode === 'business' ? 'var(--accent)' : 'var(--border)';
-  document.getElementById('modeTrip').style.borderColor = mode === 'trip' ? 'var(--accent)' : 'var(--border)';
-  if (mode === 'trip') loadTrips();
-}
-
-// ── Trip Splitting ──
-let currentTripId = null;
-let currentTripMembers = [];
-let currentTripCurrency = '$';
-
-function showNewTrip() { document.getElementById('newTripForm').style.display = 'block'; }
-function hideNewTrip() { document.getElementById('newTripForm').style.display = 'none'; }
-
-async function loadTrips() {
-  try {
-    const res = await fetch(apiUrl('/api/trips'));
-    const data = await res.json();
-    const el = document.getElementById('tripList');
-    if (!data.trips || data.trips.length === 0) {
-      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)"><div style="font-size:40px;margin-bottom:12px">✈️</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">No trips yet</div><div style="font-size:13px">Create a trip to start splitting expenses with friends!</div></div>';
-      return;
-    }
-    el.innerHTML = data.trips.map(t => {
-      const currMap = {'USD':'$','INR':'₹','EUR':'€','GBP':'£','CAD':'C$','MYR':'RM'};
-      const c = currMap[t.currency] || t.currency + ' ';
-      return `<div onclick="openTrip('${t.id}')" style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-weight:700;font-size:15px;color:var(--text1)">✈️ ${t.name}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:4px">${t.members.join(', ')}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-weight:700;font-size:16px;color:var(--accent2)">${c}${t.total.toFixed(2)}</div>
-            <div style="font-size:11px;color:var(--text2)">${t.members.length} people</div>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-  } catch(e) { console.error(e); }
-}
-
-async function createTrip() {
-  const name = document.getElementById('tripName').value.trim();
-  const members = document.getElementById('tripMembers').value.split(',').map(m => m.trim()).filter(Boolean);
-  const currency = document.getElementById('tripCurrency').value;
-  if (!name || members.length < 2) { alert('Enter trip name and at least 2 members'); return; }
-  try {
-    const res = await fetch(apiUrl('/api/trips'), {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, members, currency})
-    });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById('tripName').value = '';
-      document.getElementById('tripMembers').value = '';
-      hideNewTrip();
-      openTrip(data.trip_id);
-    } else { alert(data.error); }
-  } catch(e) { alert('Error: ' + e.message); }
-}
-
-function backToTrips() {
-  document.getElementById('modeSelector').style.display = '';
-  document.getElementById('tripMode').style.display = '';
-  document.getElementById('splitDetail').style.display = 'none';
-  currentTripId = null;
-  loadTrips();
-}
 
 async function openTrip(tripId) {
   currentTripId = tripId;
-  document.getElementById('modeSelector').style.display = 'none';
-  document.getElementById('tripMode').style.display = 'none';
   document.getElementById('businessMode').style.display = 'none';
   document.getElementById('splitDetail').style.display = 'block';
   await refreshTripDetail();
@@ -2079,68 +1973,6 @@ async function refreshTripDetail() {
       }).join('');
     }
   } catch(e) { console.error(e); }
-}
-
-async function addTripExpense() {
-  const desc = document.getElementById('splitDesc').value.trim();
-  const amt = parseFloat(document.getElementById('splitAmt').value) || 0;
-  const paidBy = document.getElementById('splitPaidBy').value;
-  const currency = document.getElementById('splitCurrency').value;
-  const checked = [...document.querySelectorAll('#splitAmongChecks input:checked')].map(c => c.value);
-  if (!desc || amt <= 0) { alert('Enter description and amount'); return; }
-  if (checked.length === 0) { alert('Select at least one person to split among'); return; }
-  try {
-    const res = await fetch(apiUrl(`/api/trips/${currentTripId}/expenses`), {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({description: desc, amount: amt, paid_by: paidBy, split_among: checked, currency, date: new Date().toISOString().split('T')[0]})
-    });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById('splitDesc').value = '';
-      document.getElementById('splitAmt').value = '';
-      await refreshTripDetail();
-    } else { alert(data.error); }
-  } catch(e) { alert('Error: ' + e.message); }
-}
-
-async function deleteTripExp(expId) {
-  if (!confirm('Delete this expense?')) return;
-  await fetch(apiUrl(`/api/trips/${currentTripId}/expenses/${expId}`), {method:'DELETE'});
-  await refreshTripDetail();
-}
-
-async function scanTripReceipt(input) {
-  if (!input.files.length || !currentTripId) return;
-  const file = input.files[0];
-  const paidBy = document.getElementById('splitPaidBy').value;
-  const checked = [...document.querySelectorAll('#splitAmongChecks input:checked')].map(c => c.value);
-  if (!paidBy) { alert('Select "Paid by" first'); input.value = ''; return; }
-
-  const status = document.getElementById('tripScanStatus');
-  status.style.display = 'block';
-  status.textContent = '🔄 Scanning receipt...';
-
-  const formData = new FormData();
-  formData.append('receipt', file);
-  formData.append('paid_by', paidBy);
-  formData.append('split_among', JSON.stringify(checked.length ? checked : currentTripMembers));
-
-  try {
-    const res = await fetch(apiUrl(`/api/trips/${currentTripId}/scan`), {method: 'POST', body: formData});
-    const data = await res.json();
-    if (data.success) {
-      status.textContent = '✅ ' + data.expense.description + ' — ' + data.expense.currency + ' ' + data.expense.amount.toFixed(2);
-      setTimeout(() => { status.style.display = 'none'; }, 3000);
-      await refreshTripDetail();
-    } else {
-      status.textContent = '❌ ' + (data.error || 'Scan failed');
-      setTimeout(() => { status.style.display = 'none'; }, 4000);
-    }
-  } catch(e) {
-    status.textContent = '❌ Error: ' + e.message;
-    setTimeout(() => { status.style.display = 'none'; }, 4000);
-  }
-  input.value = '';
 }
 
 async function loadTeam() {
