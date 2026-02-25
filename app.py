@@ -355,7 +355,8 @@ def auto_login():
             "INSERT INTO users (id, email, name, role, created_at) VALUES (%s,%s,%s,'owner',NOW())",
             (new_id, email, name)
         )
-        conn.commit()
+        if not conn.autocommit:
+            conn.commit()
         user_id, user_name, user_role, company_id = new_id, name, 'owner', None
     else:
         user_id = user['id']
