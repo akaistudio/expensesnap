@@ -2941,14 +2941,17 @@ def api_create_expense_external():
         conn.close()
         return jsonify({'error': 'date and amount are required'}), 400
 
-    # Resolve company_id from company_name
+    # Resolve company_id from company_name — look up via user's company or by name
     company_id = None
     if company_name:
-        cur.execute('SELECT id FROM companies WHERE LOWER(name)=LOWER(%s) AND created_by=%s',
-                    (company_name, str(user['id'])))
+        # Try matching by name directly
+        cur.execute('SELECT id FROM companies WHERE LOWER(name)=LOWER(%s)', (company_name,))
         co = cur.fetchone()
         if co:
             company_id = co['id']
+        else:
+            # Fallback: use user's own company_id
+            company_id = user.get('company_id')
 
     expense_id = str(__import__('uuid').uuid4())
     vendor = description[:255] if description else 'Bank Transaction'
