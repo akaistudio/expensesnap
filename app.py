@@ -1522,6 +1522,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <button class="nav-tab active" data-tab="upload">Upload</button>
 <button class="nav-tab" data-tab="dashboard">Dashboard</button>
 <button class="nav-tab" data-tab="expenses">All Expenses</button>
+<button class="nav-tab" data-tab="cc-import">💳 CC Import</button>
 <button class="nav-tab" data-tab="team">Team</button>
 <button class="nav-tab" data-tab="companies" id="companiesTab" style="display:none">Companies</button>
 </nav>
@@ -1637,6 +1638,88 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div class="table-header"><h3>All Expenses</h3>
 <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📥 Export</button></div>
 <div id="expenseTable"></div>
+</div>
+</div>
+
+<div id="cc-import" class="section">
+<div style="max-width:900px">
+  <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">💳 Credit Card Import</h2>
+  <p style="font-size:14px;color:var(--text2);margin-bottom:24px">Upload your credit card statement CSV. AI detects columns, you select which rows are business expenses — done.</p>
+
+  <!-- Step 1: Upload -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px" id="cc-step1">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:16px">Step 1 — Upload Statement</div>
+    <div id="cc-drop" onclick="document.getElementById('cc-file').click()" style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:.2s">
+      <input type="file" id="cc-file" accept=".csv" style="display:none">
+      <div style="font-size:32px;margin-bottom:10px">📄</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px" id="cc-file-label">Click to upload or drag & drop</div>
+      <div style="font-size:13px;color:var(--text2)">Credit card statement in CSV format · Any bank or card</div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:16px;align-items:center">
+      <button class="btn btn-primary" id="cc-btn-parse" disabled onclick="ccParseCSV()">Detect Columns →</button>
+      <div id="cc-loading-parse" style="display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2)">
+        <div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
+        AI reading your statement…
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Column mapping + preview -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px;display:none" id="cc-step2">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:12px">Step 2 — Confirm Columns</div>
+    <div id="cc-ai-note" style="padding:10px 14px;background:rgba(162,155,254,.08);border:1px solid rgba(162,155,254,.2);border-radius:8px;font-size:13px;color:var(--accent2);margin-bottom:16px"></div>
+    <div id="cc-col-map" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:20px"></div>
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">Preview</div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr id="cc-preview-head" style="border-bottom:1px solid var(--border)"></tr></thead>
+        <tbody id="cc-preview-body"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button class="btn btn-ghost" onclick="ccReset()">← Re-upload</button>
+      <button class="btn btn-primary" id="cc-btn-classify" onclick="ccLoadAll()">Review All Rows →</button>
+      <div id="cc-loading-classify" style="display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2)">
+        <div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
+        Loading…
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Classify rows -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;display:none" id="cc-step3">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:4px">Step 3 — Select Business Expenses</div>
+        <div style="font-size:13px;color:var(--text2)">Check rows that are business expenses. Add category for each.</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="ccSelectAll(true)">Select All</button>
+        <button class="btn btn-ghost btn-sm" onclick="ccSelectAll(false)">Deselect All</button>
+      </div>
+    </div>
+    <div id="cc-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px"></div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:10px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);width:32px">✓</th>
+          <th style="padding:10px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">Date</th>
+          <th style="padding:10px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">Description</th>
+          <th style="padding:10px 8px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">Amount</th>
+          <th style="padding:10px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">Category</th>
+        </tr></thead>
+        <tbody id="cc-classify-body"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="btn btn-ghost" onclick="document.getElementById('cc-step3').style.display='none';document.getElementById('cc-step2').style.display='block'">← Back</button>
+      <button class="btn btn-primary" id="cc-btn-import" onclick="ccImport()">Import Selected Expenses</button>
+      <div id="cc-loading-import" style="display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2)">
+        <div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
+        Importing…
+      </div>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -2137,6 +2220,150 @@ function showToast(msg,type='success') {
   const t = document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
   setTimeout(()=>t.classList.remove('show'),3500);
 }
+
+// ── CC Import ──────────────────────────────────────────────────
+let ccFile = null, ccMapping = null, ccAllRows = [];
+const CC_CATS = ['Food & Dining','Travel','Accommodation','Office Supplies','Software & Subscriptions',
+  'Marketing','Professional Services','Utilities','Rent','Entertainment','Transport','Other'];
+
+document.getElementById('cc-file').addEventListener('change', e => {
+  if (e.target.files[0]) { ccFile = e.target.files[0]; ccFileSelected(); }
+});
+const ccDrop = document.getElementById('cc-drop');
+ccDrop.addEventListener('dragover', e => { e.preventDefault(); ccDrop.style.borderColor='var(--accent)'; });
+ccDrop.addEventListener('dragleave', () => ccDrop.style.borderColor='');
+ccDrop.addEventListener('drop', e => {
+  e.preventDefault(); ccDrop.style.borderColor='';
+  if (e.dataTransfer.files[0]) { ccFile = e.dataTransfer.files[0]; ccFileSelected(); }
+});
+
+function ccFileSelected() {
+  document.getElementById('cc-file-label').textContent = ccFile.name;
+  document.getElementById('cc-btn-parse').disabled = false;
+}
+
+async function ccParseCSV() {
+  if (!ccFile) return;
+  document.getElementById('cc-btn-parse').disabled = true;
+  document.getElementById('cc-loading-parse').style.display = 'flex';
+  const fd = new FormData(); fd.append('csv_file', ccFile); fd.append('mode','cc');
+  const res = await fetch('/api/cc/parse', { method:'POST', body: fd });
+  const data = await res.json();
+  document.getElementById('cc-loading-parse').style.display = 'none';
+  if (data.error) { showToast(data.error,'error'); document.getElementById('cc-btn-parse').disabled=false; return; }
+  ccMapping = data.mapping;
+  // AI note
+  const conf = data.mapping.confidence || 'low';
+  const note = document.getElementById('cc-ai-note');
+  note.textContent = `🤖 ${conf.toUpperCase()} confidence — ${data.mapping.notes || 'Review columns below.'}`;
+  note.style.color = conf==='high'?'var(--green)':conf==='medium'?'var(--orange)':'var(--red)';
+  // Column mapping UI
+  const cols = data.columns;
+  const colOpts = cols.map((c,i)=>`<option value="${i}">${c||'Col '+i}</option>`).join('');
+  const noneOpt = '<option value="">— None —</option>';
+  const fields = [{key:'date_col',label:'Date'},{key:'desc_col',label:'Description'},
+    {key:'amount_col',label:'Amount (signed)'},{key:'debit_col',label:'Debit (separate)'},{key:'credit_col',label:'Credit (separate)'}];
+  document.getElementById('cc-col-map').innerHTML = fields.map(f=>`
+    <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:4px">${f.label}</label>
+    <select id="ccmap-${f.key}" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:inherit;font-size:13px"
+      onchange="ccMapping['${f.key}']=this.value===''?null:parseInt(this.value)">${noneOpt}${colOpts}</select></div>`).join('');
+  fields.forEach(f => { const el=document.getElementById(`ccmap-${f.key}`); if(ccMapping[f.key]!==null&&ccMapping[f.key]!==undefined) el.value=ccMapping[f.key]; });
+  // Preview table
+  const head = document.getElementById('cc-preview-head');
+  head.innerHTML = ['Date','Description','Amount'].map(h=>`<th style="padding:8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2)">${h}</th>`).join('');
+  document.getElementById('cc-preview-body').innerHTML = data.preview.map(r=>`<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+    <td style="padding:8px;font-size:13px">${r.date}</td>
+    <td style="padding:8px;font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description}</td>
+    <td style="padding:8px;font-size:13px;font-weight:700;color:${r.amount<0?'var(--red)':'var(--green)'}">${r.amount.toFixed(2)}</td></tr>`).join('');
+  document.getElementById('cc-step2').style.display = 'block';
+  document.getElementById('cc-step2').scrollIntoView({behavior:'smooth'});
+}
+
+async function ccLoadAll() {
+  document.getElementById('cc-btn-classify').disabled = true;
+  document.getElementById('cc-loading-classify').style.display = 'flex';
+  const fd = new FormData(); fd.append('csv_file', ccFile); fd.append('mapping', JSON.stringify(ccMapping));
+  const res = await fetch('/api/cc/rows', { method:'POST', body: fd });
+  const data = await res.json();
+  document.getElementById('cc-loading-classify').style.display = 'none';
+  document.getElementById('cc-btn-classify').disabled = false;
+  if (data.error) { showToast(data.error,'error'); return; }
+  ccAllRows = data.rows.map(r=>({...r, selected: r.amount > 0, category:'Other'}));
+  ccBuildClassifyTable();
+  document.getElementById('cc-step3').style.display = 'block';
+  document.getElementById('cc-step3').scrollIntoView({behavior:'smooth'});
+}
+
+function ccBuildClassifyTable() {
+  ccUpdateStats();
+  const catOpts = CC_CATS.map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('cc-classify-body').innerHTML = ccAllRows.map((r,i)=>`
+    <tr style="border-bottom:1px solid rgba(255,255,255,.04);${r.selected?'':'opacity:.45'}">
+      <td style="padding:8px"><input type="checkbox" ${r.selected?'checked':''} onchange="ccToggle(${i},this.checked)" style="width:16px;height:16px;cursor:pointer"></td>
+      <td style="padding:8px;font-size:13px">${r.date}</td>
+      <td style="padding:8px;font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.description}">${r.description}</td>
+      <td style="padding:8px;font-size:13px;font-weight:700;text-align:right;color:var(--red)">${r.amount.toFixed(2)}</td>
+      <td style="padding:8px"><select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;padding:4px 8px;font-family:inherit"
+        onchange="ccAllRows[${i}].category=this.value">${catOpts}</select></td>
+    </tr>`).join('');
+}
+
+function ccToggle(i, checked) {
+  ccAllRows[i].selected = checked;
+  const row = document.getElementById('cc-classify-body').rows[i];
+  row.style.opacity = checked ? '1' : '.45';
+  ccUpdateStats();
+}
+
+function ccSelectAll(val) {
+  ccAllRows.forEach((r,i) => { r.selected = val; });
+  ccBuildClassifyTable();
+}
+
+function ccUpdateStats() {
+  const sel = ccAllRows.filter(r=>r.selected);
+  const total = sel.reduce((s,r)=>s+r.amount,0);
+  document.getElementById('cc-stats').innerHTML = `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+      <div style="font-size:22px;font-weight:800">${ccAllRows.length}</div><div style="font-size:12px;color:var(--text2)">Total Rows</div></div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+      <div style="font-size:22px;font-weight:800;color:var(--accent2)">${sel.length}</div><div style="font-size:12px;color:var(--text2)">Selected</div></div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+      <div style="font-size:22px;font-weight:800;color:var(--red)">${total.toFixed(2)}</div><div style="font-size:12px;color:var(--text2)">Total Spend</div></div>`;
+}
+
+async function ccImport() {
+  const selected = ccAllRows.filter(r=>r.selected);
+  if (!selected.length) { showToast('No rows selected','error'); return; }
+  document.getElementById('cc-btn-import').disabled = true;
+  document.getElementById('cc-loading-import').style.display = 'flex';
+  const res = await fetch('/api/cc/import', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rows: selected, company_id: currentCompanyId })
+  });
+  const data = await res.json();
+  document.getElementById('cc-loading-import').style.display = 'none';
+  if (data.error) { showToast(data.error,'error'); document.getElementById('cc-btn-import').disabled=false; return; }
+  document.getElementById('cc-step3').innerHTML = `
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:48px;margin-bottom:16px">✅</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:8px">Import Complete</div>
+      <div style="color:var(--text2);font-size:14px;margin-bottom:24px">${data.imported} expenses added from your credit card statement</div>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-primary" onclick="document.querySelector('[data-tab=expenses]').click()">View Expenses</button>
+        <button class="btn btn-ghost" onclick="ccReset();document.getElementById('cc-step3').style.display='none'">Import Another</button>
+      </div>
+    </div>`;
+  loadDashboard();
+}
+
+function ccReset() {
+  ccFile=null; ccMapping=null; ccAllRows=[];
+  document.getElementById('cc-file-label').textContent='Click to upload or drag & drop';
+  document.getElementById('cc-btn-parse').disabled=true;
+  document.getElementById('cc-step2').style.display='none';
+  document.getElementById('cc-step3').style.display='none';
+}
 </script></body></html>"""
 
 init_db()
@@ -2436,6 +2663,113 @@ def api_companies_external():
 @app.route('/health')
 def health():
     return __import__('flask').jsonify({'status': 'ok', 'app': 'expensesnap'})
+
+@app.route('/api/cc/parse', methods=['POST'])
+@login_required
+def cc_parse():
+    """Parse CC statement CSV and AI-detect columns."""
+    if 'csv_file' not in request.files or not request.files['csv_file'].filename:
+        return jsonify({'error': 'No file uploaded'}), 400
+    f = request.files['csv_file']
+    content = f.read().decode('utf-8', errors='replace')
+    lines = content.strip().split('\n')
+    if len(lines) < 2:
+        return jsonify({'error': 'CSV appears empty'}), 400
+    sample = '\n'.join(lines[:min(10, len(lines))])
+    try:
+        import anthropic as _anth
+        client = _anth.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        msg = client.messages.create(
+            model='claude-opus-4-5', max_tokens=600,
+            system='''Analyze this credit card statement CSV. Return ONLY valid JSON:
+{"date_col":<int or null>,"desc_col":<int or null>,"amount_col":<int or null>,
+"debit_col":<int or null>,"credit_col":<int or null>,"has_header":<bool>,
+"confidence":"high/medium/low","notes":"<brief explanation>"}
+For CC statements, charges are usually positive debits. If single amount column, set amount_col.
+If separate debit/credit columns, set those instead. Return purchases only (positive spend).''',
+            messages=[{'role':'user','content':f'CC statement CSV:\n{sample}'}])
+        import json as _json
+        mapping = _json.loads(msg.content[0].text)
+    except Exception as e:
+        mapping = {'date_col':0,'desc_col':1,'amount_col':2,'debit_col':None,'credit_col':None,
+                   'has_header':True,'confidence':'low','notes':f'AI failed: {e}'}
+    import csv, io as _io
+    reader = csv.reader(_io.StringIO(content))
+    rows = list(reader)
+    header = rows[0] if mapping.get('has_header') else [f'Col {i}' for i in range(len(rows[0]) if rows else 0)]
+    data_rows = rows[1:] if mapping.get('has_header') else rows
+    preview = []
+    for row in data_rows[:15]:
+        if not any(row): continue
+        try:
+            date_val = row[mapping['date_col']].strip() if mapping.get('date_col') is not None and mapping['date_col'] < len(row) else ''
+            desc_val = row[mapping['desc_col']].strip() if mapping.get('desc_col') is not None and mapping['desc_col'] < len(row) else ''
+            if mapping.get('debit_col') is not None and mapping.get('credit_col') is not None:
+                debit = float(row[mapping['debit_col']].replace(',','').strip() or 0) if mapping['debit_col'] < len(row) else 0
+                amount = debit
+            else:
+                raw = row[mapping['amount_col']].replace(',','').strip() if mapping.get('amount_col') is not None and mapping['amount_col'] < len(row) else '0'
+                amount = abs(float(raw or 0))
+            if date_val or desc_val:
+                preview.append({'date': date_val, 'description': desc_val, 'amount': round(amount, 2)})
+        except: continue
+    session['cc_csv'] = content
+    return jsonify({'mapping': mapping, 'columns': header, 'preview': preview, 'total_rows': len(data_rows)})
+
+@app.route('/api/cc/rows', methods=['POST'])
+@login_required
+def cc_rows():
+    """Return all parsed rows for classification."""
+    content = session.get('cc_csv', '')
+    mapping_str = request.form.get('mapping', '{}')
+    import json as _json, csv, io as _io
+    try: mapping = _json.loads(mapping_str)
+    except: return jsonify({'error': 'Invalid mapping'}), 400
+    if not content: return jsonify({'error': 'No CSV in session. Re-upload.'}), 400
+    reader = csv.reader(_io.StringIO(content))
+    rows = list(reader)
+    data_rows = rows[1:] if mapping.get('has_header') else rows
+    result = []
+    for row in data_rows:
+        if not any(row): continue
+        try:
+            date_val = row[mapping['date_col']].strip() if mapping.get('date_col') is not None and mapping['date_col'] < len(row) else ''
+            desc_val = row[mapping['desc_col']].strip() if mapping.get('desc_col') is not None and mapping['desc_col'] < len(row) else ''
+            if mapping.get('debit_col') is not None:
+                amount = float(row[mapping['debit_col']].replace(',','').strip() or 0) if mapping['debit_col'] < len(row) else 0
+            else:
+                raw = row[mapping['amount_col']].replace(',','').strip() if mapping.get('amount_col') is not None and mapping['amount_col'] < len(row) else '0'
+                amount = abs(float(raw or 0))
+            if amount > 0 and (date_val or desc_val):
+                result.append({'date': date_val[:10], 'description': desc_val, 'amount': round(amount, 2)})
+        except: continue
+    return jsonify({'rows': result, 'count': len(result)})
+
+@app.route('/api/cc/import', methods=['POST'])
+@login_required
+def cc_import():
+    """Bulk create expenses from selected CC rows."""
+    data = request.get_json() or {}
+    rows = data.get('rows', [])
+    company_id = data.get('company_id') or session.get('company_id')
+    if not rows: return jsonify({'error': 'No rows to import'}), 400
+    conn = get_db(); cur = conn.cursor()
+    imported = 0
+    user_email = session.get('user_email', '')
+    currency = session.get('currency', 'USD')
+    for row in rows:
+        try:
+            expense_id = str(__import__('uuid').uuid4())
+            cur.execute('''INSERT INTO expenses
+                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
+                (expense_id, row.get('date','')[:10], row.get('description','')[:255],
+                 row.get('category','Other'), row.get('amount',0), row.get('amount',0),
+                 currency, user_email, company_id, 'cc_import'))
+            imported += 1
+        except: continue
+    conn.close()
+    return jsonify({'success': True, 'imported': imported})
 
 @app.route('/api/expenses/create-external', methods=['POST'])
 def api_create_expense_external():
