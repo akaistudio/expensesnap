@@ -1613,7 +1613,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <input type="number" id="splitAmt" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></div>
 <div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Currency</label>
 <select id="splitCurrency" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)">
-<option value="EUR">🇪🇺 EUR</option><option value="GBP">🇬🇧 GBP</option><option value="USD">🇺🇸 USD</option><option value="MYR">🇲🇾 MYR</option><option value="INR">🇮🇳 INR</option><option value="CAD">🇨🇦 CAD</option></select></div>
+<option value="EUR">🇪🇺 EUR</option><option value="GBP">🇬🇧 GBP</option><option value="USD">🇺🇸 USD</option><option value="MYR">🇲🇾 MYR</option><option value="INR">🇮🇳 INR</option><option value="CAD">🇨🇦 CAD</option><option value="SGD">🇸🇬 SGD</option><option value="AUD">🇦🇺 AUD</option><option value="AED">🇦🇪 AED</option></select></div>
 <div><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Paid by *</label>
 <select id="splitPaidBy" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text1)"></select></div>
 <div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Split among</label>
