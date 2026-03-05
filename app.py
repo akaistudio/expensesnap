@@ -83,6 +83,7 @@ def init_db():
         ('home_currency', 'companies', "'USD'"),
         ('total_home', 'expenses', '0'),
         ('total_usd', 'expenses', '0'),
+        ('source', 'expenses', "'manual'"),
     ]:
         try:
             cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {'VARCHAR(10)' if 'currency' in col else 'DOUBLE PRECISION'} DEFAULT {default}")
@@ -2435,6 +2436,53 @@ def api_companies_external():
 @app.route('/health')
 def health():
     return __import__('flask').jsonify({'status': 'ok', 'app': 'expensesnap'})
+
+@app.route('/api/expenses/create-external', methods=['POST'])
+def api_create_expense_external():
+    """Create an expense from an external source (e.g. bank reconciliation in FinanceSnap)."""
+    api_key = request.headers.get('X-API-Key', '')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+    conn = get_db(); cur = conn.cursor()
+    cur.execute('SELECT * FROM users WHERE email=%s', (api_key,))
+    user = cur.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Invalid API key'}), 401
+
+    data = request.get_json() or {}
+    date = (data.get('date') or '')[:10]
+    amount = float(data.get('amount') or 0)
+    description = data.get('description', '').strip()
+    category = data.get('category', 'Other').strip()
+    company_name = data.get('company_name', '').strip()
+    source = data.get('source', 'external')  # e.g. 'bank_recon', 'cc_import'
+    currency = data.get('currency', user.get('currency', 'USD'))
+
+    if not date or amount <= 0:
+        conn.close()
+        return jsonify({'error': 'date and amount are required'}), 400
+
+    # Resolve company_id from company_name
+    company_id = None
+    if company_name:
+        cur.execute('SELECT id FROM companies WHERE LOWER(name)=LOWER(%s) AND created_by=%s',
+                    (company_name, str(user['id'])))
+        co = cur.fetchone()
+        if co:
+            company_id = co['id']
+
+    expense_id = str(__import__('uuid').uuid4())
+    vendor = description[:255] if description else 'Bank Transaction'
+
+    cur.execute('''INSERT INTO expenses
+        (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, created_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
+        (expense_id, date, vendor, category, amount, amount, currency,
+         api_key, company_id, source))
+    conn.close()
+    return jsonify({'success': True, 'expense_id': expense_id, 'vendor': vendor,
+                    'amount': amount, 'date': date, 'source': source})
 
 if __name__ == '__main__':
     print("\n" + "="*50)
