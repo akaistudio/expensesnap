@@ -1132,7 +1132,7 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
   <div class="nav-right">
     <a href="#features" class="nav-link">Features</a>
     <a href="#how" class="nav-link">How it works</a>
-    <a href="https://usevarnam.com" class="nav-link">Varnam Suite</a>
+    <a href="https://snapsuite.up.railway.app" class="nav-link">Varnam Suite</a>
     <a href="/login" class="nav-btn">Sign In →</a>
   </div>
 </nav>
@@ -1223,7 +1223,7 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
     <a href="/register" class="btn-primary">Create Free Account →</a>
     <a href="/login" class="btn-outline">Sign In</a>
   </div>
-  <div class="suite-note">Part of <a href="https://usevarnam.com">Varnam Suite</a> — 7 apps for your entire business</div>
+  <div class="suite-note">Part of <a href="https://snapsuite.up.railway.app">Varnam Suite</a> — 7 apps for your entire business</div>
 </div>
 
 <footer class="footer">
@@ -1231,7 +1231,7 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
   <div class="footer-links">
     <a href="/login">Sign In</a>
     <a href="/register">Register</a>
-    <a href="https://usevarnam.com">Varnam Suite</a>
+    <a href="https://snapsuite.up.railway.app">Varnam Suite</a>
   </div>
 </footer>
 
