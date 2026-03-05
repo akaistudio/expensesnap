@@ -2957,10 +2957,10 @@ def api_create_expense_external():
     vendor = description[:255] if description else 'Bank Transaction'
 
     cur.execute('''INSERT INTO expenses
-        (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, created_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
+        (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, created_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
         (expense_id, date, vendor, category, amount, amount, currency,
-         api_key, company_id, source))
+         api_key, company_id))
     conn.close()
     return jsonify({'success': True, 'expense_id': expense_id, 'vendor': vendor,
                     'amount': amount, 'date': date, 'source': source})
