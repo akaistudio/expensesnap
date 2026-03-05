@@ -1017,81 +1017,225 @@ def index():
 # ── Login HTML ─────────────────────────────────────────────────
 LANDING_HTML = r"""
 <!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>ExpenseSnap — AI-Powered Expense Tracker</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ExpenseSnap — AI Receipt Scanning & Expense Tracking</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0B0F1A;--surface:#141926;--border:#2A3148;--text:#E8ECF4;--text2:#8B95B0;
---accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B;--teal:#2dd4bf}
+--accent:#6C5CE7;--accent2:#A29BFE;--green:#00D2A0;--red:#FF6B6B}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 a{text-decoration:none;color:inherit}
-.btn-hero{display:inline-block;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;margin:0 6px 8px;transition:all .2s;cursor:pointer}
-.btn-hero:hover{transform:translateY(-2px)}
-.btn-fill{background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff !important;box-shadow:0 4px 20px rgba(108,92,231,.2)}
-.btn-fill:hover{box-shadow:0 8px 30px rgba(108,92,231,.4)}
-.btn-outline{background:transparent;color:var(--text) !important;border:1.5px solid var(--border)}
-.btn-outline:hover{border-color:var(--accent);color:var(--accent) !important}
-.mode-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;display:block;color:inherit}
-.mode-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+
+/* Nav */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;
+background:rgba(11,15,26,.8);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+position:sticky;top:0;z-index:100}
+.nav-logo{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--green));
+-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-right{display:flex;align-items:center;gap:8px}
+.nav-link{font-size:14px;color:var(--text2);padding:8px 14px;border-radius:8px;transition:.15s}
+.nav-link:hover{background:var(--surface);color:#fff}
+.nav-btn{font-size:14px;font-weight:700;padding:9px 20px;border-radius:9px;
+background:var(--accent);color:#fff;transition:.15s}
+.nav-btn:hover{background:#5A4BD1}
+
+/* Hero */
+.hero{min-height:88vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+text-align:center;padding:60px 24px;position:relative;overflow:hidden}
+.hero-glow{position:absolute;width:700px;height:700px;
+background:radial-gradient(circle,rgba(108,92,231,.13),transparent 65%);
+top:50%;left:50%;transform:translate(-50%,-60%);pointer-events:none}
+.hero-glow2{position:absolute;width:400px;height:400px;
+background:radial-gradient(circle,rgba(0,210,160,.08),transparent 65%);
+bottom:-80px;right:-80px;pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;
+background:rgba(108,92,231,.1);border:1px solid rgba(108,92,231,.25);border-radius:20px;
+padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:28px}
+.hero h1{font-size:clamp(34px,5.5vw,58px);font-weight:800;line-height:1.1;
+color:#fff;margin-bottom:20px;max-width:700px}
+.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--green));
+-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:17px;color:var(--text2);line-height:1.75;margin-bottom:36px;max-width:520px}
+.hero-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.btn-primary{display:inline-block;padding:14px 32px;background:var(--accent);color:#fff;
+border-radius:10px;font-size:15px;font-weight:700;transition:.2s}
+.btn-primary:hover{background:#5A4BD1;transform:translateY(-2px);box-shadow:0 8px 30px rgba(108,92,231,.3)}
+.btn-outline{display:inline-block;padding:14px 32px;border:1.5px solid var(--border);
+color:var(--text);border-radius:10px;font-size:15px;font-weight:600;transition:.2s}
+.btn-outline:hover{border-color:var(--accent2);color:#fff}
+
+/* Stats row */
+.stats{display:flex;gap:0;justify-content:center;margin-top:56px;
+background:var(--surface);border:1px solid var(--border);border-radius:16px;
+max-width:680px;margin-left:auto;margin-right:auto;overflow:hidden}
+.stat{flex:1;padding:22px 24px;text-align:center;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-num{font-size:26px;font-weight:800;color:#fff;margin-bottom:4px}
+.stat-lbl{font-size:12px;color:var(--text2);font-weight:500}
+
+/* Features */
+.section{padding:80px 24px;max-width:1080px;margin:0 auto}
+.section-tag{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:2px;
+color:var(--accent2);margin-bottom:12px;text-align:center}
+.section-title{font-size:clamp(24px,3vw,36px);font-weight:800;color:#fff;
+text-align:center;margin-bottom:12px}
+.section-sub{font-size:15px;color:var(--text2);text-align:center;margin-bottom:48px;max-width:520px;margin-left:auto;margin-right:auto}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;
+transition:.2s;position:relative;overflow:hidden}
+.feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--green));opacity:0;transition:.2s}
+.feat-card:hover{border-color:rgba(108,92,231,.4);transform:translateY(-3px)}
+.feat-card:hover::before{opacity:1}
+.feat-icon{font-size:28px;margin-bottom:14px}
+.feat-title{font-size:15px;font-weight:700;color:#fff;margin-bottom:8px}
+.feat-desc{font-size:13px;color:var(--text2);line-height:1.7}
+
+/* How it works */
+.steps{display:flex;flex-direction:column;gap:12px;max-width:700px;margin:0 auto}
+.step{display:flex;gap:16px;align-items:flex-start;
+background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px}
+.step-num{min-width:36px;height:36px;border-radius:10px;
+background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;
+display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
+.step-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
+.step-desc{font-size:13px;color:var(--text2);line-height:1.6}
+
+/* CTA */
+.cta{padding:80px 24px;text-align:center;
+background:linear-gradient(180deg,transparent,rgba(108,92,231,.06))}
+.cta h2{font-size:clamp(26px,3.5vw,40px);font-weight:800;color:#fff;margin-bottom:12px}
+.cta p{font-size:15px;color:var(--text2);margin-bottom:32px}
+.cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.suite-note{margin-top:24px;font-size:13px;color:var(--text2)}
+.suite-note a{color:var(--accent2)}
+
+/* Footer */
+.footer{padding:24px 32px;border-top:1px solid var(--border);
+display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.footer-left{font-size:13px;color:var(--text2)}
+.footer-left strong{color:#fff}
+.footer-links{display:flex;gap:16px}
+.footer-links a{font-size:13px;color:var(--text2);transition:.15s}
+.footer-links a:hover{color:#fff}
+
+@media(max-width:640px){
+.nav{padding:14px 20px}.hero{padding:48px 20px}
+.stats{flex-direction:column;max-width:320px}.stat{border-right:none;border-bottom:1px solid var(--border)}
+.stat:last-child{border-bottom:none}
+.footer{flex-direction:column;text-align:center}
+}
 </style></head><body>
 
-<section style="min-height:80vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 24px 40px;position:relative;overflow:hidden">
-<div style="position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(108,92,231,.12),transparent 70%);top:-100px;right:-100px;pointer-events:none;z-index:0"></div>
-<div style="max-width:720px;position:relative;z-index:1">
-<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(108,92,231,.1);border:1px solid rgba(108,92,231,.2);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:24px">✦ AI-Powered Expense Tracking</div>
-<h1 style="font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.15;margin-bottom:16px;color:#fff">Snap a receipt.<br><span style="background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Track every expense.</span></h1>
-<p style="font-size:17px;color:var(--text2);line-height:1.7;margin-bottom:28px;max-width:560px;margin-left:auto;margin-right:auto">AI-powered receipt scanning for business expenses. Multi-currency, multi-company, instant categorization. Export to Excel in one click.</p>
-<div>
-<a href="/login" class="btn-hero btn-fill">Sign In →</a>
-<a href="/register" class="btn-hero btn-outline">Create Account</a>
-<a href="#features" class="btn-hero btn-outline">See Features</a>
-</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px;max-width:500px;margin-left:auto;margin-right:auto">
-<a href="/login" class="mode-card">
-<div style="font-size:28px;margin-bottom:6px">🏢</div>
-<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Business Expenses</div>
-<div style="font-size:11px;color:var(--text2);line-height:1.4">Scan receipts, manual entry, P&L dashboard, Excel export</div>
-</a>
-<a href="/login" class="mode-card">
-<div style="font-size:28px;margin-bottom:6px">✈️</div>
-<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">Multi-Company</div>
-<div style="font-size:11px;color:var(--text2);line-height:1.4">Track expenses across multiple companies with role-based access</div>
-</a>
-</div>
-</div>
+<nav class="nav">
+  <div class="nav-logo">ExpenseSnap</div>
+  <div class="nav-right">
+    <a href="#features" class="nav-link">Features</a>
+    <a href="#how" class="nav-link">How it works</a>
+    <a href="https://usevarnam.com" class="nav-link">Varnam Suite</a>
+    <a href="/login" class="nav-btn">Sign In →</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-glow2"></div>
+  <div class="hero-badge">✦ Part of Varnam Suite</div>
+  <h1>Scan receipts.<br><span>Every expense tracked.</span></h1>
+  <p class="hero-sub">AI-powered receipt scanning for business expenses. Upload a photo — vendor, amount, category, GST all extracted instantly. Multi-currency, multi-company.</p>
+  <div class="hero-btns">
+    <a href="/register" class="btn-primary">Get Started Free →</a>
+    <a href="/login" class="btn-outline">Sign In</a>
+  </div>
+  <div class="stats" style="margin-top:56px">
+    <div class="stat"><div class="stat-num">7</div><div class="stat-lbl">Currencies</div></div>
+    <div class="stat"><div class="stat-num">AI</div><div class="stat-lbl">Receipt Parsing</div></div>
+    <div class="stat"><div class="stat-num">💳</div><div class="stat-lbl">CC Import</div></div>
+    <div class="stat"><div class="stat-num">XLS</div><div class="stat-lbl">Export</div></div>
+  </div>
 </section>
 
-<section id="features" style="padding:60px 24px;max-width:1000px;margin:0 auto">
-<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:12px;text-align:center">Features</div>
-<div style="font-size:28px;font-weight:800;color:#fff;text-align:center;margin-bottom:36px">Two apps in one — business + personal</div>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📸</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">AI Receipt Scanner</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Upload any receipt — AI extracts vendor, items, amount, tax, currency, and category in seconds. Works for any currency.</div></div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📊</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Smart Dashboard</div><div style="font-size:13px;color:var(--text2);line-height:1.6">See totals by category, monthly trends, and company breakdowns. Filter, search, and export to Excel in one click.</div></div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">💱</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Multi-Currency</div><div style="font-size:13px;color:var(--text2);line-height:1.6">USD, EUR, GBP, INR, CAD, MYR and more. Expenses auto-convert to your company's base currency.</div></div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">📊</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">P&L Dashboard</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Business expenses feed into a live dashboard. Total spend, category breakdown, monthly trends at a glance.</div></div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">✏️</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Manual Entry</div><div style="font-size:13px;color:var(--text2);line-height:1.6">No receipt? No problem. Log payroll, subscriptions, and recurring costs manually with category and payment method.</div></div>
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px"><div style="font-size:26px;margin-bottom:10px">👥</div><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Team & Companies</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Invite team members with codes. Multi-company support for agencies. Admin controls and shared expense views.</div></div>
+<div class="section" id="features">
+  <div class="section-tag">Features</div>
+  <div class="section-title">Everything you need to track business spend</div>
+  <div class="section-sub">From receipt photos to Excel reports — without the manual data entry.</div>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-icon">📸</div>
+      <div class="feat-title">AI Receipt Scanner</div>
+      <div class="feat-desc">Upload any receipt photo — AI extracts vendor, amount, tax, category, and currency in seconds. Works for any format, any country.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">💳</div>
+      <div class="feat-title">Credit Card Import</div>
+      <div class="feat-desc">Upload your CC statement CSV. AI detects columns automatically, you tick which rows are business expenses and assign categories — done.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">Expense Dashboard</div>
+      <div class="feat-desc">Category breakdowns, monthly trends, company totals. Filter by date range, search by vendor, and export to Excel in one click.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">💱</div>
+      <div class="feat-title">Multi-Currency</div>
+      <div class="feat-desc">SGD, USD, EUR, GBP, INR, CAD, MYR supported. Expenses auto-convert to your company's base currency for consistent reporting.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🏢</div>
+      <div class="feat-title">Multi-Company</div>
+      <div class="feat-desc">Manage expenses across multiple companies. Invite team members with role-based access. Each company's data stays isolated.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔗</div>
+      <div class="feat-title">Connected to FinanceSnap</div>
+      <div class="feat-desc">Expenses flow automatically into your FinanceSnap dashboard for P&L, cash flow, and bank reconciliation — no double entry.</div>
+    </div>
+  </div>
 </div>
-</section>
 
-<section style="padding:40px 24px 60px;max-width:800px;margin:0 auto">
-<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--green);margin-bottom:12px;text-align:center">How it works</div>
-<div style="font-size:28px;font-weight:800;color:#fff;text-align:center;margin-bottom:32px">Up and running in 60 seconds</div>
-<div style="display:flex;flex-direction:column;gap:14px">
-<div style="display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px"><div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">1</div><div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Add your company</div><div style="font-size:13px;color:var(--text2);line-height:1.5">Set up your company with base currency. Invite team members with role-based access.</div></div></div>
-<div style="display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px"><div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">2</div><div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Scan or add expenses</div><div style="font-size:13px;color:var(--text2);line-height:1.5">Upload a photo of any receipt — AI extracts everything. Or type it manually. Supports any currency.</div></div></div>
-<div style="display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px"><div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">3</div><div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">See the results</div><div style="font-size:13px;color:var(--text2);line-height:1.5">Dashboard shows totals by category, monthly trends, and company breakdowns. Export to Excel anytime.</div></div></div>
+<div class="section" id="how" style="padding-top:0">
+  <div class="section-tag">How it works</div>
+  <div class="section-title">Up and running in 60 seconds</div>
+  <div class="section-sub" style="margin-bottom:36px">No setup. No configuration. Just add expenses.</div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div><div class="step-title">Create your company</div>
+      <div class="step-desc">Sign up, add your company name and base currency. Invite team members with access codes if needed.</div></div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div><div class="step-title">Add expenses</div>
+      <div class="step-desc">Upload receipt photos, import your credit card statement CSV, or log manually. AI does the extraction for you.</div></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div><div class="step-title">Review & export</div>
+      <div class="step-desc">Dashboard shows totals by category and month. Export to Excel anytime, or let FinanceSnap pull the data automatically.</div></div>
+    </div>
+  </div>
 </div>
-</section>
 
-<section style="padding:40px 24px 80px;text-align:center">
-<a href="/login" style="display:inline-block;padding:18px 48px;background:linear-gradient(135deg,var(--accent),#5A4BD1);color:#fff !important;border-radius:12px;font-size:17px;font-weight:700;transition:.2s;box-shadow:0 4px 20px rgba(108,92,231,.3);margin:0 8px 10px">Sign In →</a>
-<a href="/register" style="display:inline-block;padding:18px 48px;background:transparent;color:var(--text) !important;border:1.5px solid var(--border);border-radius:12px;font-size:17px;font-weight:600;margin:0 8px 10px">Create Free Account</a>
-<div style="margin-top:20px;font-size:12px;color:var(--text2)">Part of <a href="https://snapsuite.up.railway.app" style="color:var(--accent2)">Varnam Suite</a> — 6 apps for your entire business</div>
-</section>
+<div class="cta">
+  <h2>Start tracking smarter</h2>
+  <p>Free to use. No credit card required.</p>
+  <div class="cta-btns">
+    <a href="/register" class="btn-primary">Create Free Account →</a>
+    <a href="/login" class="btn-outline">Sign In</a>
+  </div>
+  <div class="suite-note">Part of <a href="https://usevarnam.com">Varnam Suite</a> — 7 apps for your entire business</div>
+</div>
+
+<footer class="footer">
+  <div class="footer-left"><strong>ExpenseSnap</strong> by Varnam Suite</div>
+  <div class="footer-links">
+    <a href="/login">Sign In</a>
+    <a href="/register">Register</a>
+    <a href="https://usevarnam.com">Varnam Suite</a>
+  </div>
+</footer>
+
 </body></html>"""
-
 LOGIN_HTML = r"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
