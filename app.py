@@ -2397,16 +2397,29 @@ def api_companies_external():
     if not user:
         conn.close()
         return jsonify({'error': 'Invalid API key'}), 401
-    if user['role'] != 'super_admin':
-        conn.close()
-        return jsonify({'error': 'Admin only'}), 403
 
-    cur.execute("""SELECT c.*,
-        COUNT(e.id) as receipt_count,
-        COALESCE(SUM(e.total), 0) as total_expenses,
-        (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id) as user_count
-        FROM companies c LEFT JOIN expenses e ON c.id = e.company_id
-        GROUP BY c.id ORDER BY c.name""")
+    # Super admin sees all companies
+    # Regular users see only the company they belong to
+    if user['role'] == 'super_admin':
+        cur.execute("""SELECT c.*,
+            COUNT(e.id) as receipt_count,
+            COALESCE(SUM(e.total), 0) as total_expenses,
+            (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id) as user_count
+            FROM companies c LEFT JOIN expenses e ON c.id = e.company_id
+            GROUP BY c.id ORDER BY c.name""")
+    else:
+        # Return the company this user belongs to (by company_id or by being the owner)
+        cur.execute("""SELECT c.*,
+            COUNT(e.id) as receipt_count,
+            COALESCE(SUM(e.total), 0) as total_expenses,
+            (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id) as user_count
+            FROM companies c LEFT JOIN expenses e ON c.id = e.company_id
+            WHERE c.id = %s OR c.id IN (
+                SELECT company_id FROM users WHERE email = %s AND company_id IS NOT NULL
+            )
+            GROUP BY c.id ORDER BY c.name""",
+            (user.get('company_id') or 0, api_key))
+
     companies = cur.fetchall()
     conn.close()
     result = []
@@ -2417,6 +2430,11 @@ def api_companies_external():
                 d[k] = v.isoformat()
         result.append(d)
     return jsonify({'companies': result, 'count': len(result)})
+
+
+@app.route('/health')
+def health():
+    return __import__('flask').jsonify({'status': 'ok', 'app': 'expensesnap'})
 
 if __name__ == '__main__':
     print("\n" + "="*50)
