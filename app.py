@@ -1182,8 +1182,8 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
     </div>
     <div class="feat-card">
       <div class="feat-icon">🏢</div>
-      <div class="feat-title">Multi-Company</div>
-      <div class="feat-desc">Manage expenses across multiple companies. Invite team members with role-based access. Each company's data stays isolated.</div>
+      <div class="feat-title">Multi-Company Support</div>
+      <div class="feat-desc">CAs and agencies can manage expenses across multiple client companies. Each company's data is fully isolated with its own currency and team access.</div>
     </div>
     <div class="feat-card">
       <div class="feat-icon">🔗</div>
