@@ -1716,7 +1716,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 </div>
 
 <nav class="nav">
-<button class="nav-tab active" data-tab="upload">Upload</button>
+<button class="nav-tab active" data-tab="dashboard">Dashboard</button>
 <button class="nav-tab" data-tab="dashboard">Dashboard</button>
 <button class="nav-tab" data-tab="expenses">All Expenses</button>
 <button class="nav-tab" data-tab="cc-import">💳 CC Import</button>
@@ -1734,7 +1734,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 </select>
 </div>
 
-<div id="upload" class="section active">
+<div id="upload" class="section">
 
 
 
@@ -1825,7 +1825,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 <div id="recentUploads" style="margin-top:28px;"></div>
 </div>
 
-<div id="dashboard" class="section">
+<div id="dashboard" class="section active">
 <div class="stats-grid" id="statsGrid"></div>
 <div class="cat-section" id="catSection"><h3>Spending by Category</h3><div id="catBars"></div></div>
 </div>
