@@ -2537,7 +2537,7 @@ async function ccImport() {
   document.getElementById('cc-loading-import').style.display = 'flex';
   const res = await fetch('/api/cc/import', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ rows: selected, company_id: currentCompanyId })
+    body: JSON.stringify({ rows: selected, company_id: currentCompanyId || myCompanyId })
   });
   const data = await res.json();
   document.getElementById('cc-loading-import').style.display = 'none';
