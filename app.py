@@ -2524,7 +2524,11 @@ async function ccLoadAll() {
   document.getElementById('cc-loading-classify').style.display = 'none';
   document.getElementById('cc-btn-classify').disabled = false;
   if (data.error) { showToast(data.error,'error'); return; }
-  ccAllRows = data.rows.map(r=>({...r, selected: r.amount > 0, category: guessCategory(r.description)}));
+  ccAllRows = data.rows.map(r=>({...r, selected: r.amount > 0 && !r.is_duplicate, category: guessCategory(r.description)}));
+  const dupCount = data.duplicates || 0;
+  if (dupCount > 0) {
+    showToast(`${dupCount} possible duplicate${dupCount>1?'s':''} auto-unchecked — review before importing`, 'error');
+  }
   ccBuildClassifyTable();
   document.getElementById('cc-step3').style.display = 'block';
   document.getElementById('cc-step3').scrollIntoView({behavior:'smooth'});
@@ -2535,10 +2539,13 @@ function ccBuildClassifyTable() {
   document.getElementById('cc-classify-body').innerHTML = ccAllRows.map((r,i)=>{
     const catOpts = CC_CATS.map(c=>`<option ${c===r.category?'selected':''}>${c}</option>`).join('');
     return `
-    <tr style="border-bottom:1px solid rgba(255,255,255,.04);${r.selected?'':'opacity:.45'}">
+    <tr style="border-bottom:1px solid rgba(255,255,255,.04);${r.selected?'':'opacity:.45'}${r.is_duplicate?';background:rgba(245,158,11,0.06)':''}">
       <td style="padding:8px"><input type="checkbox" ${r.selected?'checked':''} onchange="ccToggle(${i},this.checked)" style="width:16px;height:16px;cursor:pointer"></td>
       <td style="padding:8px;font-size:13px">${r.date}</td>
-      <td style="padding:8px;font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.description}">${r.description}</td>
+      <td style="padding:8px;font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.description}">
+        ${r.description}
+        ${r.is_duplicate?'<span style="margin-left:6px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.2);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);padding:2px 6px;border-radius:5px;">⚠️ Already exists</span>':''}
+      </td>
       <td style="padding:8px;font-size:13px;font-weight:700;text-align:right;color:var(--red)">${r.amount.toFixed(2)}</td>
       <td style="padding:8px"><select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;padding:4px 8px;font-family:inherit"
         onchange="ccAllRows[${i}].category=this.value">${catOpts}</select></td>
@@ -3029,11 +3036,10 @@ def cc_parse():
 @app.route('/api/cc/rows', methods=['POST'])
 @login_required
 def cc_rows():
-    """Return all parsed rows for classification."""
-    # Prefer re-uploaded file, fall back to session cache
+    """Return all parsed rows with duplicate flags."""
     if 'csv_file' in request.files and request.files['csv_file'].filename:
         content = request.files['csv_file'].read().decode('utf-8', errors='replace')
-        session['cc_csv'] = content  # refresh session cache
+        session['cc_csv'] = content
     else:
         content = session.get('cc_csv', '')
     mapping_str = request.form.get('mapping', '{}')
@@ -3056,9 +3062,19 @@ def cc_rows():
                 raw = row[mapping['amount_col']].replace(',','').strip() if mapping.get('amount_col') is not None and mapping['amount_col'] < len(row) else '0'
                 amount = abs(float(raw or 0))
             if amount > 0 and (date_val or desc_val):
-                result.append({'date': date_val[:10], 'description': desc_val, 'amount': round(amount, 2)})
+                result.append({'date': date_val[:10], 'description': desc_val, 'amount': round(amount, 2), 'is_duplicate': False})
         except: continue
-    return jsonify({'rows': result, 'count': len(result)})
+    # Duplicate check against existing expenses in one query
+    company_id = session.get('company_id')
+    if company_id and result:
+        conn = get_db(); cur = conn.cursor()
+        for r in result:
+            cur.execute('''SELECT 1 FROM expenses
+                WHERE company_id=%s AND date=%s AND vendor=%s AND ABS(total-%s)<0.01 LIMIT 1''',
+                (company_id, r['date'], r['description'], r['amount']))
+            r['is_duplicate'] = cur.fetchone() is not None
+        conn.close()
+    return jsonify({'rows': result, 'count': len(result), 'duplicates': sum(1 for r in result if r['is_duplicate'])})
 
 
 @app.route('/api/cc/debug-session')
@@ -3120,21 +3136,14 @@ def cc_import():
             row_date = str(row.get('date',''))[:10]
             row_vendor = str(row.get('description',''))[:255]
             row_amount = float(row.get('amount') or 0)
-            # Duplicate check: same date + vendor + amount already in this company
-            cur.execute('''SELECT id FROM expenses
-                WHERE company_id=%s AND date=%s AND vendor=%s AND ABS(total-%s)<0.01 LIMIT 1''',
-                (company_id, row_date, row_vendor, row_amount))
-            is_dup = cur.fetchone() is not None
             cur.execute('''INSERT INTO expenses
-                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, is_duplicate, created_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'cc_import',%s,NOW())''',
+                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'cc_import',NOW())''',
                 (expense_id, row_date, row_vendor,
                  str(row.get('category','Other')),
                  row_amount, row_amount,
-                 currency, user_email, company_id, is_dup))
+                 currency, user_email, company_id))
             imported += 1
-            if is_dup:
-                errors.append(f"Row {i} marked as possible duplicate: {row_vendor} {row_date}")
         except Exception as e:
             err = f"Row {i}: {e}"
             print(f"[CC IMPORT] {err}")
