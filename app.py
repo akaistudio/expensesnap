@@ -3049,35 +3049,62 @@ def cc_rows():
 @login_required
 def cc_import():
     """Bulk create expenses from selected CC rows."""
+    import uuid as _uuid, traceback as _tb
     data = request.get_json() or {}
     rows = data.get('rows', [])
     company_id = data.get('company_id') or session.get('company_id')
+
+    print(f"[CC IMPORT] rows={len(rows)}, company_id={company_id}, session_company={session.get('company_id')}, user_id={session.get('user_id')}")
+
     if not rows: return jsonify({'error': 'No rows to import'}), 400
-    if not company_id: return jsonify({'error': 'No company selected — please select a company first from the top bar'}), 400
+    if not company_id: return jsonify({'error': 'No company selected — please select a company from the top bar'}), 400
+
     conn = get_db(); cur = conn.cursor()
     imported = 0
-    # Get user email from user_id in session
+    errors = []
+
     cur.execute('SELECT email, currency FROM users WHERE id=%s', (session['user_id'],))
     u = cur.fetchone()
-    user_email = u['email'] if u else ''
-    currency = u['currency'] if u else 'INR'
-    for row in rows:
+    if not u:
+        conn.close()
+        return jsonify({'error': f"User not found in DB (id={session.get('user_id')})"}), 400
+    user_email = u['email']
+    currency = u.get('currency') or 'INR'
+
+    # Verify company exists
+    cur.execute('SELECT id FROM companies WHERE id=%s', (company_id,))
+    if not cur.fetchone():
+        conn.close()
+        return jsonify({'error': f"Company '{company_id}' not found — try logging out and back in"}), 400
+
+    for i, row in enumerate(rows):
         try:
-            expense_id = str(__import__('uuid').uuid4())
+            expense_id = str(_uuid.uuid4())
             cur.execute('''INSERT INTO expenses
                 (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, created_at)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
-                (expense_id, row.get('date','')[:10], row.get('description','')[:255],
-                 row.get('category','Other'), row.get('amount',0), row.get('amount',0),
+                (expense_id,
+                 str(row.get('date',''))[:10],
+                 str(row.get('description',''))[:255],
+                 str(row.get('category','Other')),
+                 float(row.get('amount') or 0),
+                 float(row.get('amount') or 0),
                  currency, user_email, company_id))
             imported += 1
         except Exception as e:
-            print(f"[CC IMPORT] row error: {e}")
-            continue
-    if not conn.autocommit:
-        conn.commit()
+            err = f"Row {i}: {e}"
+            print(f"[CC IMPORT] {err}")
+            errors.append(err)
+
+    if imported > 0:
+        if not conn.autocommit:
+            conn.commit()
     conn.close()
-    return jsonify({'success': True, 'imported': imported})
+
+    if imported == 0:
+        return jsonify({'error': f'All rows failed. First error: {errors[0] if errors else "unknown"}'}), 400
+
+    return jsonify({'success': True, 'imported': imported, 'skipped': len(errors)})
 
 @app.route('/api/expenses/create-external', methods=['POST'])
 def api_create_expense_external():
