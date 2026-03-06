@@ -1801,6 +1801,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
     </div>
     <div style="display:flex;gap:12px;margin-top:16px;align-items:center">
       <button class="btn btn-primary" id="cc-btn-parse" disabled onclick="ccParseCSV()">Detect Columns →</button>
+      <a href="/api/cc/sample-csv" style="margin-left:12px;padding:4px 12px;background:rgba(162,155,254,.1);color:var(--accent2);border:1px solid rgba(162,155,254,.25);border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">⬇ Download Sample CSV</a>
       <div id="cc-loading-parse" style="display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2)">
         <div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
         AI reading your statement…
@@ -2807,6 +2808,37 @@ def api_companies_external():
 @app.route('/health')
 def health():
     return __import__('flask').jsonify({'status': 'ok', 'app': 'expensesnap'})
+
+@app.route('/api/cc/sample-csv')
+@login_required
+def cc_sample_csv():
+    import io
+    sample = """Date,Description,Amount
+2026-01-03,AMAZON WEB SERVICES,12400.00
+2026-01-05,SWIGGY TEAM LUNCH,650.00
+2026-01-07,ADOBE CREATIVE CLOUD,5900.00
+2026-01-09,NETFLIX PERSONAL,499.00
+2026-01-10,GOOGLE WORKSPACE,1500.00
+2026-01-12,UBER PERSONAL TRIP,340.00
+2026-01-14,FIGMA SUBSCRIPTION,1200.00
+2026-01-15,STARBUCKS PERSONAL,399.00
+2026-01-16,CANVA PRO,3500.00
+2026-01-18,BIGBASKET GROCERIES,2800.00
+2026-01-20,NOTION SUBSCRIPTION,800.00
+2026-01-22,WEWORK OFFICE RENT,25000.00
+2026-01-24,ZOMATO TEAM DINNER,1850.00
+2026-01-25,SPOTIFY PERSONAL,179.00
+2026-01-27,GITHUB COPILOT,1000.00
+2026-01-28,ZOOM PRO,1300.00
+2026-01-29,DROPBOX BUSINESS,750.00
+2026-01-30,MYNTRA PERSONAL CLOTHES,3200.00
+2026-01-31,SLACK SUBSCRIPTION,2200.00
+"""
+    buf = io.BytesIO(sample.encode('utf-8'))
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='text/csv', as_attachment=True,
+                     download_name='sample_cc_statement.csv')
 
 @app.route('/api/cc/parse', methods=['POST'])
 @login_required
