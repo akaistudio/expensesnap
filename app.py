@@ -2921,7 +2921,7 @@ def cc_sample_csv():
 @app.route('/api/cc/parse', methods=['POST'])
 @login_required
 def cc_parse():
-    """Parse CC statement CSV and AI-detect columns."""
+    """Parse CC CSV — keyword header detection first, AI as optional enhancement."""
     if 'csv_file' not in request.files or not request.files['csv_file'].filename:
         return jsonify({'error': 'No file uploaded'}), 400
     f = request.files['csv_file']
@@ -2929,38 +2929,79 @@ def cc_parse():
     lines = content.strip().split('\n')
     if len(lines) < 2:
         return jsonify({'error': 'CSV appears empty'}), 400
-    sample = '\n'.join(lines[:min(10, len(lines))])
-    try:
-        import anthropic as _anth
-        client = _anth.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-        msg = client.messages.create(
-            model='claude-opus-4-5', max_tokens=600,
-            system='''Analyze this credit card statement CSV. Return ONLY valid JSON:
-{"date_col":<int or null>,"desc_col":<int or null>,"amount_col":<int or null>,
-"debit_col":<int or null>,"credit_col":<int or null>,"has_header":<bool>,
-"confidence":"high/medium/low","notes":"<brief explanation>"}
-For CC statements, charges are usually positive debits. If single amount column, set amount_col.
-If separate debit/credit columns, set those instead. Return purchases only (positive spend).''',
-            messages=[{'role':'user','content':f'CC statement CSV:\n{sample}'}])
-        import json as _json
-        mapping = _json.loads(msg.content[0].text)
-    except Exception as e:
-        mapping = {'date_col':0,'desc_col':1,'amount_col':2,'debit_col':None,'credit_col':None,
-                   'has_header':True,'confidence':'low','notes':f'AI failed: {e}'}
-    import csv, io as _io
+
+    import csv, io as _io, json as _json
     reader = csv.reader(_io.StringIO(content))
     rows = list(reader)
-    header = rows[0] if mapping.get('has_header') else [f'Col {i}' for i in range(len(rows[0]) if rows else 0)]
-    data_rows = rows[1:] if mapping.get('has_header') else rows
+    if not rows:
+        return jsonify({'error': 'Could not parse CSV'}), 400
+
+    # --- Step 1: Rule-based header detection (works without AI) ---
+    header_row = [h.strip().lower() for h in rows[0]]
+    has_header = any(h for h in header_row if not h.replace('.','').replace('-','').replace('/','').replace(' ','').isnumeric())
+
+    DATE_KW   = ['date', 'txn date', 'transaction date', 'posting date', 'value date', 'trans date', 'tran date']
+    DESC_KW   = ['description', 'desc', 'narration', 'particulars', 'details', 'merchant', 'remarks', 'reference', 'transaction details']
+    AMOUNT_KW = ['amount', 'amt', 'transaction amount', 'txn amount', 'inr amount', 'usd amount']
+    DEBIT_KW  = ['debit', 'dr', 'dr.', 'withdrawal', 'spend', 'charge', 'debit amount']
+    CREDIT_KW = ['credit', 'cr', 'cr.', 'deposit', 'refund', 'credit amount']
+
+    def find_col(keywords, headers):
+        for kw in keywords:
+            for i, h in enumerate(headers):
+                if kw == h or h.startswith(kw) or kw in h:
+                    return i
+        return None
+
+    date_col   = find_col(DATE_KW, header_row)
+    desc_col   = find_col(DESC_KW, header_row)
+    debit_col  = find_col(DEBIT_KW, header_row)
+    credit_col = find_col(CREDIT_KW, header_row)
+    amount_col = None if debit_col is not None else find_col(AMOUNT_KW, header_row)
+
+    # Determine confidence from rule-based result
+    found = sum(x is not None for x in [date_col, desc_col, debit_col or amount_col])
+    if found == 3:
+        confidence, notes = 'high', f'Detected from headers: date=col{date_col}, desc=col{desc_col}, ' + (f'debit=col{debit_col}' if debit_col is not None else f'amount=col{amount_col}')
+    elif found == 2:
+        confidence, notes = 'medium', f'Partially detected from headers — review column mapping below'
+    else:
+        # Hard fallback: positional
+        date_col, desc_col, amount_col, debit_col, credit_col = 0, 1, 2, None, None
+        confidence, notes = 'low', 'Headers not recognised — defaulting to col 0=date, 1=description, 2=amount. Please verify below.'
+
+    mapping = {
+        'date_col': date_col, 'desc_col': desc_col,
+        'amount_col': amount_col, 'debit_col': debit_col, 'credit_col': credit_col,
+        'has_header': has_header, 'confidence': confidence, 'notes': notes
+    }
+
+    # --- Step 2: Try AI to improve low/medium confidence (optional) ---
+    if confidence != 'high':
+        try:
+            import anthropic as _anth
+            client = _anth.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+            sample = '\n'.join(lines[:min(8, len(lines))])
+            msg = client.messages.create(
+                model='claude-haiku-4-5-20251001', max_tokens=300,
+                system='Analyze this CC CSV. Return ONLY valid JSON with keys: date_col, desc_col, amount_col, debit_col, credit_col (int or null), has_header (bool), confidence (high/medium/low), notes (string). No other text.',
+                messages=[{'role': 'user', 'content': f'CSV:\n{sample}'}])
+            ai = _json.loads(msg.content[0].text.strip())
+            if ai.get('confidence') in ('high', 'medium'):
+                mapping = ai
+        except Exception:
+            pass  # Rule-based result already set — no error shown to user
+
+    header = rows[0] if has_header else [f'Col {i}' for i in range(len(rows[0]))]
+    data_rows = rows[1:] if has_header else rows
     preview = []
     for row in data_rows[:15]:
         if not any(row): continue
         try:
             date_val = row[mapping['date_col']].strip() if mapping.get('date_col') is not None and mapping['date_col'] < len(row) else ''
             desc_val = row[mapping['desc_col']].strip() if mapping.get('desc_col') is not None and mapping['desc_col'] < len(row) else ''
-            if mapping.get('debit_col') is not None and mapping.get('credit_col') is not None:
-                debit = float(row[mapping['debit_col']].replace(',','').strip() or 0) if mapping['debit_col'] < len(row) else 0
-                amount = debit
+            if mapping.get('debit_col') is not None and mapping['debit_col'] < len(row):
+                amount = abs(float(row[mapping['debit_col']].replace(',','').strip() or 0))
             else:
                 raw = row[mapping['amount_col']].replace(',','').strip() if mapping.get('amount_col') is not None and mapping['amount_col'] < len(row) else '0'
                 amount = abs(float(raw or 0))
