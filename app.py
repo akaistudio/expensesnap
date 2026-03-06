@@ -1720,7 +1720,6 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 
 <nav class="nav">
 <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
-<button class="nav-tab" data-tab="dashboard">Dashboard</button>
 <button class="nav-tab" data-tab="expenses">All Expenses</button>
 <button class="nav-tab" data-tab="cc-import">💳 CC Import</button>
 <button class="nav-tab" data-tab="team">Team</button>
