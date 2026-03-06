@@ -83,12 +83,19 @@ def init_db():
         ('home_currency', 'companies', "'USD'"),
         ('total_home', 'expenses', '0'),
         ('total_usd', 'expenses', '0'),
-        ('source', 'expenses', "'manual'"),
+        # source column handled separately below
     ]:
         try:
             cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {'VARCHAR(10)' if 'currency' in col else 'DOUBLE PRECISION'} DEFAULT {default}")
         except Exception:
             conn.rollback()
+    # source and duplicate_hint columns
+    for sql in [
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_duplicate BOOLEAN DEFAULT FALSE",
+    ]:
+        try: cur.execute(sql)
+        except Exception: conn.rollback()
 
     # Trip expense splitting tables
     cur.execute("""CREATE TABLE IF NOT EXISTS trips (
@@ -938,8 +945,8 @@ def upload_receipt():
     total = float(data.get('total',0))
     total_home = convert_currency(total, bill_currency, home_currency)
     total_usd = convert_currency(total, bill_currency, 'USD')
-    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,payment_method,currency,items,uploaded_by,company_id,receipt_image)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,payment_method,currency,items,uploaded_by,company_id,receipt_image,source)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'receipt')""",
                  (expense_id, data.get('date',''), data.get('vendor',''), data.get('location',''),
                   data.get('category',''), data.get('subtotal',0), data.get('tax',0), data.get('tip',0),
                   total, total_home, total_usd, data.get('payment_method',''), bill_currency,
@@ -969,8 +976,8 @@ def add_manual_expense():
     total = float(data.get('total', 0))
     total_home = convert_currency(total, bill_currency, home_currency)
     total_usd = convert_currency(total, bill_currency, 'USD')
-    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,payment_method,currency,items,uploaded_by,company_id,receipt_image)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+    cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,tip,total,total_home,total_usd,payment_method,currency,items,uploaded_by,company_id,receipt_image,source)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'receipt')""",
                  (expense_id, data.get('date', ''), data.get('vendor', ''), data.get('location', ''),
                   data.get('category', 'Other'), float(data.get('subtotal', 0) or total), float(data.get('tax', 0) or 0), 0,
                   total, total_home, total_usd, data.get('payment_method', 'Bank Transfer'), bill_currency,
@@ -2118,12 +2125,16 @@ async function loadExpenses() {
     if (!expenses.length) { document.getElementById('expenseTable').innerHTML = '<div class="empty-state"><div class="icon">🧾</div><p>No expenses yet</p></div>'; return; }
     const showCompany = isSuperAdmin && !selectedCompany;
     document.getElementById('expenseTable').innerHTML = expenses.map(e => `
-      <div class="expense-card" onclick="toggleExpenseDetail(this)">
+      <div class="expense-card" onclick="toggleExpenseDetail(this)" style="${e.is_duplicate?'border-color:rgba(245,158,11,0.4);':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
           <div style="flex:1;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <strong>${e.vendor}</strong>
               <span class="cat-badge">${e.category}</span>
+              ${e.source==='cc_import'?'<span style="font-size:10px;font-weight:700;background:rgba(99,102,241,0.2);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);padding:2px 7px;border-radius:6px;">💳 CC</span>':''}
+              ${e.source==='receipt'?'<span style="font-size:10px;font-weight:700;background:rgba(0,210,160,0.15);color:#6ee7b7;border:1px solid rgba(0,210,160,0.25);padding:2px 7px;border-radius:6px;">🧾 Receipt</span>':''}
+              ${e.source==='bank_recon'?'<span style="font-size:10px;font-weight:700;background:rgba(59,130,246,0.15);color:#93c5fd;border:1px solid rgba(59,130,246,0.25);padding:2px 7px;border-radius:6px;">🏦 Bank</span>':''}
+              ${e.is_duplicate?'<span style="font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:#fcd34d;border:1px solid rgba(245,158,11,0.3);padding:2px 7px;border-radius:6px;">⚠️ Possible Duplicate</span>':''}
               ${showCompany?`<span style="font-size:11px;color:var(--accent2);background:rgba(99,102,241,0.15);padding:2px 8px;border-radius:8px;">${e.company_name||''}</span>`:''}
             </div>
             <div style="font-size:12px;color:var(--text2);margin-top:4px;">${e.date} · ${e.location||''} ${e.uploaded_by?'· '+e.uploaded_by:''}</div>
@@ -3104,17 +3115,24 @@ def cc_import():
     for i, row in enumerate(rows):
         try:
             expense_id = str(_uuid.uuid4())
+            row_date = str(row.get('date',''))[:10]
+            row_vendor = str(row.get('description',''))[:255]
+            row_amount = float(row.get('amount') or 0)
+            # Duplicate check: same date + vendor + amount already in this company
+            cur.execute('''SELECT id FROM expenses
+                WHERE company_id=%s AND date=%s AND vendor=%s AND ABS(total-%s)<0.01 LIMIT 1''',
+                (company_id, row_date, row_vendor, row_amount))
+            is_dup = cur.fetchone() is not None
             cur.execute('''INSERT INTO expenses
-                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, created_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
-                (expense_id,
-                 str(row.get('date',''))[:10],
-                 str(row.get('description',''))[:255],
+                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, is_duplicate, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'cc_import',%s,NOW())''',
+                (expense_id, row_date, row_vendor,
                  str(row.get('category','Other')),
-                 float(row.get('amount') or 0),
-                 float(row.get('amount') or 0),
-                 currency, user_email, company_id))
+                 row_amount, row_amount,
+                 currency, user_email, company_id, is_dup))
             imported += 1
+            if is_dup:
+                errors.append(f"Row {i} marked as possible duplicate: {row_vendor} {row_date}")
         except Exception as e:
             err = f"Row {i}: {e}"
             print(f"[CC IMPORT] {err}")
