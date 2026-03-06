@@ -381,14 +381,31 @@ def auto_login():
 
 @app.route('/demo')
 def demo_auto_login():
+    """One-click demo login — creates demo user + company if needed."""
+    import uuid as _uuid
+    demo_email = 'demo@varnam.app'
     conn = get_db(); cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email='demo@varnam.app'")
-    user = cur.fetchone(); conn.close()
-    if user:
-        session.update({'user_id': user['id'], 'user_name': user['name'], 'user_role': user['role'],
-                        'company_id': user['company_id'], 'company_name': 'All Companies'})
-        return redirect('/')
-    return redirect('/welcome')
+    cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
+    user = cur.fetchone()
+    if not user:
+        uid = str(_uuid.uuid4())[:8]
+        cid = 'bloom-demo'
+        cur.execute("INSERT INTO companies (id, name, home_currency) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+                   (cid, 'Bloom Studio', 'INR'))
+        cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id) VALUES (%s,%s,%s,%s,%s,%s)",
+                   (uid, 'Demo User', demo_email, hash_password('demo123'), 'super_admin', cid))
+        conn.commit()
+        cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
+        user = cur.fetchone()
+    conn.close()
+    session.clear()
+    session['user_id'] = user['id']
+    session['user_name'] = user['name']
+    session['user_role'] = user['role']
+    session['company_id'] = user['company_id']
+    session['company_name'] = 'Bloom Studio'
+    session.permanent = True
+    return redirect('/')
 
 @app.route('/welcome')
 def welcome():
