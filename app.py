@@ -96,6 +96,8 @@ def init_db():
     ]:
         try: cur.execute(sql)
         except Exception: conn.rollback()
+    try: conn.commit()
+    except Exception: pass
 
     # Trip expense splitting tables
     cur.execute("""CREATE TABLE IF NOT EXISTS trips (
