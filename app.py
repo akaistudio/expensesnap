@@ -2424,6 +2424,29 @@ let ccFile = null, ccMapping = null, ccAllRows = [];
 const CC_CATS = ['Food & Dining','Travel','Accommodation','Office Supplies','Software & Subscriptions',
   'Marketing','Professional Services','Utilities','Rent','Entertainment','Transport','Other'];
 
+const CC_CATEGORY_RULES = [
+  { cat: 'Software & Subscriptions', keywords: ['adobe','figma','notion','slack','zoom','github','canva','dropbox','google workspace','microsoft','aws','amazon web','digitalocean','heroku','railway','netlify','vercel','anthropic','openai','chatgpt','spotify','netflix','apple','1password','loom','linear','jira','confluence','hubspot','mailchimp','sendgrid','twilio','stripe','intercom'] },
+  { cat: 'Transport', keywords: ['uber','ola','rapido','lyft','grab','taxi','auto','cab','rideshare','metro','bus','train','irctc','meru'] },
+  { cat: 'Travel', keywords: ['indigo','air india','spicejet','vistara','goair','akasa','emirates','etihad','british airways','singapore airlines','flight','airline','airways','airport','jet','makemytrip','goibibo','cleartrip','yatra'] },
+  { cat: 'Accommodation', keywords: ['hotel','airbnb','oyo','taj','marriott','hilton','hyatt','ihg','booking.com','trivago','treebo','fabhotel','zostel','hostel','resort','inn','lodge'] },
+  { cat: 'Food & Dining', keywords: ['swiggy','zomato','uber eats','dunzo','blinkit','starbucks','mcdonald','kfc','dominos','pizza','burger','restaurant','cafe','food','dining','lunch','dinner','breakfast','canteen','bistro','bar & grill','eatery'] },
+  { cat: 'Utilities', keywords: ['electricity','bescom','tata power','adani electricity','water','broadband','jio','airtel','bsnl','vodafone','vi ','idea','act fibernet','internet','phone bill','mobile bill','gas','lpg'] },
+  { cat: 'Rent', keywords: ['wework','awfis','cowrks','91springboard','cowork','office rent','rent','lease','workspace','space'] },
+  { cat: 'Office Supplies', keywords: ['bigbasket','amazon','flipkart','staples','stationery','office','supplies','printer','cartridge','furniture','desk','chair'] },
+  { cat: 'Marketing', keywords: ['google ads','meta ads','facebook ads','instagram ads','linkedin ads','twitter ads','youtube ads','advertis','marketing','seo','pr agency','influencer','campaign'] },
+  { cat: 'Entertainment', keywords: ['bookmyshow','pvr','inox','netflix','hotstar','disney','prime video','spotify','concert','event','movie','cinema','theatre','game','steam'] },
+  { cat: 'Professional Services', keywords: ['lawyer','ca ','chartered accountant','consultant','advisor','legal','audit','tax','zerodha','groww','demat','brokerage','ficci','nasscom'] },
+  { cat: 'Transport', keywords: ['petrol','fuel','bpcl','hpcl','iocl','shell','parking','toll','fastag','nhai'] },
+];
+
+function guessCategory(description) {
+  const d = description.toLowerCase();
+  for (const rule of CC_CATEGORY_RULES) {
+    if (rule.keywords.some(k => d.includes(k))) return rule.cat;
+  }
+  return 'Other';
+}
+
 document.getElementById('cc-file').addEventListener('change', e => {
   if (e.target.files[0]) { ccFile = e.target.files[0]; ccFileSelected(); }
 });
@@ -2486,7 +2509,7 @@ async function ccLoadAll() {
   document.getElementById('cc-loading-classify').style.display = 'none';
   document.getElementById('cc-btn-classify').disabled = false;
   if (data.error) { showToast(data.error,'error'); return; }
-  ccAllRows = data.rows.map(r=>({...r, selected: r.amount > 0, category:'Other'}));
+  ccAllRows = data.rows.map(r=>({...r, selected: r.amount > 0, category: guessCategory(r.description)}));
   ccBuildClassifyTable();
   document.getElementById('cc-step3').style.display = 'block';
   document.getElementById('cc-step3').scrollIntoView({behavior:'smooth'});
@@ -2494,8 +2517,9 @@ async function ccLoadAll() {
 
 function ccBuildClassifyTable() {
   ccUpdateStats();
-  const catOpts = CC_CATS.map(c=>`<option>${c}</option>`).join('');
-  document.getElementById('cc-classify-body').innerHTML = ccAllRows.map((r,i)=>`
+  document.getElementById('cc-classify-body').innerHTML = ccAllRows.map((r,i)=>{
+    const catOpts = CC_CATS.map(c=>`<option ${c===r.category?'selected':''}>${c}</option>`).join('');
+    return `
     <tr style="border-bottom:1px solid rgba(255,255,255,.04);${r.selected?'':'opacity:.45'}">
       <td style="padding:8px"><input type="checkbox" ${r.selected?'checked':''} onchange="ccToggle(${i},this.checked)" style="width:16px;height:16px;cursor:pointer"></td>
       <td style="padding:8px;font-size:13px">${r.date}</td>
@@ -2503,7 +2527,8 @@ function ccBuildClassifyTable() {
       <td style="padding:8px;font-size:13px;font-weight:700;text-align:right;color:var(--red)">${r.amount.toFixed(2)}</td>
       <td style="padding:8px"><select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;padding:4px 8px;font-family:inherit"
         onchange="ccAllRows[${i}].category=this.value">${catOpts}</select></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function ccToggle(i, checked) {
