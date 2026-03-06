@@ -3015,7 +3015,12 @@ def cc_parse():
 @login_required
 def cc_rows():
     """Return all parsed rows for classification."""
-    content = session.get('cc_csv', '')
+    # Prefer re-uploaded file, fall back to session cache
+    if 'csv_file' in request.files and request.files['csv_file'].filename:
+        content = request.files['csv_file'].read().decode('utf-8', errors='replace')
+        session['cc_csv'] = content  # refresh session cache
+    else:
+        content = session.get('cc_csv', '')
     mapping_str = request.form.get('mapping', '{}')
     import json as _json, csv, io as _io
     try: mapping = _json.loads(mapping_str)
