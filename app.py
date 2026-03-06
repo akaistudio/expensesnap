@@ -381,19 +381,55 @@ def auto_login():
 
 @app.route('/demo')
 def demo_auto_login():
-    """One-click demo login — creates demo user + company if needed."""
+    """One-click demo — shared Bloom Studio account, reseeds every 24h."""
     import uuid as _uuid
+    from datetime import datetime, timedelta
     demo_email = 'demo@varnam.app'
+    cid = 'bloom-demo'
     conn = get_db(); cur = conn.cursor()
+    # Ensure demo_reset_at column exists
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_reset_at TIMESTAMP")
+        conn.commit()
+    except: pass
+    cur.execute("INSERT INTO companies (id, name, home_currency) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING", (cid,'Bloom Studio','INR'))
     cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
     user = cur.fetchone()
+    needs_seed = False
     if not user:
         uid = str(_uuid.uuid4())[:8]
-        cid = 'bloom-demo'
-        cur.execute("INSERT INTO companies (id, name, home_currency) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
-                   (cid, 'Bloom Studio', 'INR'))
-        cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id) VALUES (%s,%s,%s,%s,%s,%s)",
-                   (uid, 'Demo User', demo_email, hash_password('demo123'), 'super_admin', cid))
+        cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id,demo_reset_at) VALUES (%s,%s,%s,%s,%s,%s,NOW())",
+                   (uid,'Demo User',demo_email,hash_password('demo123'),'super_admin',cid))
+        conn.commit()
+        cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
+        user = cur.fetchone()
+        needs_seed = True
+    else:
+        last_reset = user.get('demo_reset_at')
+        if not last_reset or (datetime.utcnow() - last_reset.replace(tzinfo=None)) > timedelta(hours=24):
+            needs_seed = True
+    if needs_seed:
+        cur.execute("DELETE FROM expenses WHERE company_id=%s", (cid,))
+        cur.execute("UPDATE users SET demo_reset_at=NOW(), company_id=%s WHERE email=%s", (cid, demo_email))
+        expenses = [
+            ('2026-01-05','Adobe Creative Cloud','Online','Software',5900,0,5900,'Credit Card','INR'),
+            ('2026-01-08','Starbucks Reserve','Bangalore','Meals & Entertainment',399,19,399,'UPI','INR'),
+            ('2026-01-12','Amazon Web Services','Online','Cloud & Hosting',12400,0,12400,'Credit Card','INR'),
+            ('2026-01-15','Uber','Bangalore','Travel',340,0,340,'UPI','INR'),
+            ('2026-01-22','WeWork','Bangalore','Office & Rent',25000,0,25000,'Bank Transfer','INR'),
+            ('2026-01-25','Swiggy','Bangalore','Meals & Entertainment',650,0,650,'UPI','INR'),
+            ('2026-02-01','Google Workspace','Online','Software',1500,0,1500,'Credit Card','INR'),
+            ('2026-02-03','Figma','Online','Software',1200,0,1200,'Credit Card','INR'),
+            ('2026-02-12','Canva Pro','Online','Software',3500,0,3500,'Credit Card','INR'),
+            ('2026-02-14','BigBasket','Bangalore','Office Supplies',850,0,850,'UPI','INR'),
+            ('2026-02-14','Notion','Online','Software',800,0,800,'Credit Card','INR'),
+        ]
+        for e in expenses:
+            eid = str(_uuid.uuid4())[:8]
+            cur.execute("""INSERT INTO expenses (id,date,vendor,location,category,subtotal,tax,total,total_home,total_usd,
+                           payment_method,currency,uploaded_by,company_id)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       (f'demo-{eid}',e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[6],round(e[6]/84,2),e[7],e[8],demo_email,cid))
         conn.commit()
         cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
         user = cur.fetchone()
@@ -402,7 +438,7 @@ def demo_auto_login():
     session['user_id'] = user['id']
     session['user_name'] = user['name']
     session['user_role'] = user['role']
-    session['company_id'] = user['company_id']
+    session['company_id'] = cid
     session['company_name'] = 'Bloom Studio'
     session.permanent = True
     return redirect('/')
