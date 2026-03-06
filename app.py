@@ -2946,21 +2946,29 @@ def cc_import():
     rows = data.get('rows', [])
     company_id = data.get('company_id') or session.get('company_id')
     if not rows: return jsonify({'error': 'No rows to import'}), 400
+    if not company_id: return jsonify({'error': 'No company selected'}), 400
     conn = get_db(); cur = conn.cursor()
     imported = 0
-    user_email = session.get('user_email', '')
-    currency = session.get('currency', 'USD')
+    # Get user email from user_id in session
+    cur.execute('SELECT email, currency FROM users WHERE id=%s', (session['user_id'],))
+    u = cur.fetchone()
+    user_email = u['email'] if u else ''
+    currency = u['currency'] if u else 'INR'
     for row in rows:
         try:
             expense_id = str(__import__('uuid').uuid4())
             cur.execute('''INSERT INTO expenses
-                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, source, created_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
+                (id, date, vendor, category, subtotal, total, currency, uploaded_by, company_id, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
                 (expense_id, row.get('date','')[:10], row.get('description','')[:255],
                  row.get('category','Other'), row.get('amount',0), row.get('amount',0),
-                 currency, user_email, company_id, 'cc_import'))
+                 currency, user_email, company_id))
             imported += 1
-        except: continue
+        except Exception as e:
+            print(f"[CC IMPORT] row error: {e}")
+            continue
+    if not conn.autocommit:
+        conn.commit()
     conn.close()
     return jsonify({'success': True, 'imported': imported})
 
