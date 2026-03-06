@@ -2562,7 +2562,7 @@ async function ccImport() {
   document.getElementById('cc-loading-import').style.display = 'flex';
   const res = await fetch('/api/cc/import', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ rows: selected, company_id: currentCompanyId || myCompanyId })
+    body: JSON.stringify({ rows: selected, company_id: selectedCompany || myCompanyId })
   });
   const data = await res.json();
   document.getElementById('cc-loading-import').style.display = 'none';
@@ -3007,7 +3007,7 @@ def cc_import():
     rows = data.get('rows', [])
     company_id = data.get('company_id') or session.get('company_id')
     if not rows: return jsonify({'error': 'No rows to import'}), 400
-    if not company_id: return jsonify({'error': 'No company selected'}), 400
+    if not company_id: return jsonify({'error': 'No company selected — please select a company first from the top bar'}), 400
     conn = get_db(); cur = conn.cursor()
     imported = 0
     # Get user email from user_id in session
