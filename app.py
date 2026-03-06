@@ -3086,7 +3086,9 @@ def cc_import():
     imported = 0
     errors = []
 
-    cur.execute('SELECT email, currency FROM users WHERE id=%s', (session['user_id'],))
+    cur.execute('''SELECT u.email, c.home_currency as currency 
+                   FROM users u LEFT JOIN companies c ON u.company_id = c.id 
+                   WHERE u.id=%s''', (session['user_id'],))
     u = cur.fetchone()
     if not u:
         conn.close()
