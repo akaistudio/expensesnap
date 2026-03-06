@@ -1186,6 +1186,7 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
     <a href="#features" class="nav-link">Features</a>
     <a href="#how" class="nav-link">How it works</a>
     <a href="https://snapsuite.up.railway.app" class="nav-link">Varnam Suite</a>
+    <a href="/demo" class="nav-link" style="color:var(--green);font-weight:700">🎮 Try Demo</a>
     <a href="/login" class="nav-btn">Sign In →</a>
   </div>
 </nav>
@@ -1197,7 +1198,8 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
   <h1>Scan receipts.<br><span>Every expense tracked.</span></h1>
   <p class="hero-sub">AI-powered receipt scanning for business expenses. Upload a photo — vendor, amount, category, GST all extracted instantly. Multi-currency, multi-company.</p>
   <div class="hero-btns">
-    <a href="/register" class="btn-primary">Get Started Free →</a>
+    <a href="/demo" class="btn-primary">🎮 Try Demo</a>
+    <a href="/register" class="btn-outline">Get Started Free</a>
     <a href="/login" class="btn-outline">Sign In</a>
   </div>
   <div class="stats" style="margin-top:56px">
@@ -1273,7 +1275,8 @@ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap
   <h2>Start tracking smarter</h2>
   <p>Free to use. No credit card required.</p>
   <div class="cta-btns">
-    <a href="/register" class="btn-primary">Create Free Account →</a>
+    <a href="/demo" class="btn-primary">🎮 Try Demo Instantly</a>
+    <a href="/register" class="btn-outline">Create Free Account</a>
     <a href="/login" class="btn-outline">Sign In</a>
   </div>
   <div class="suite-note">Part of <a href="https://snapsuite.up.railway.app">Varnam Suite</a> — 7 apps for your entire business</div>
@@ -3044,6 +3047,26 @@ def cc_rows():
                 result.append({'date': date_val[:10], 'description': desc_val, 'amount': round(amount, 2)})
         except: continue
     return jsonify({'rows': result, 'count': len(result)})
+
+
+@app.route('/api/cc/debug-session')
+@login_required  
+def cc_debug_session():
+    """Debug endpoint — shows session state and company validity."""
+    conn = get_db(); cur = conn.cursor()
+    user_id = session.get('user_id')
+    company_id = session.get('company_id')
+    cur.execute('SELECT id, email, role, company_id FROM users WHERE id=%s', (user_id,))
+    user = cur.fetchone()
+    cur.execute('SELECT id, name FROM companies WHERE id=%s', (company_id,)) if company_id else None
+    company = cur.fetchone() if company_id else None
+    conn.close()
+    return jsonify({
+        'session_user_id': user_id,
+        'session_company_id': company_id,
+        'user_in_db': dict(user) if user else None,
+        'company_in_db': dict(company) if company else None,
+    })
 
 @app.route('/api/cc/import', methods=['POST'])
 @login_required
