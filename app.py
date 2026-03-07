@@ -1717,6 +1717,7 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 th,td{padding:8px 10px;font-size:12px}.cat-name{width:100px}
 .user-badge{display:none}.company-card{flex-direction:column;gap:10px;align-items:flex-start}
 input,select,textarea{font-size:16px!important}}
+@media(max-width:400px){.stats-grid{grid-template-columns:1fr}.nav-tab{font-size:12px;padding:10px 10px}}
 </style></head><body>
 {% if is_demo %}
 <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:600;color:#fff;position:sticky;top:0;z-index:200;flex-wrap:wrap">
