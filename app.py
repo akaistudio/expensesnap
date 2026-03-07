@@ -1714,6 +1714,15 @@ border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:
 .stat-value{font-size:24px}.table-wrap{overflow-x:auto}table{min-width:600px}
 .cat-name{width:120px}.user-badge{display:none}.company-card{flex-direction:column;gap:12px;align-items:flex-start}}
 </style></head><body>
+{% if is_demo %}
+<div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:600;color:#fff;position:sticky;top:0;z-index:200;flex-wrap:wrap">
+  <span>🎭 Demo mode — Bloom Studio &nbsp;·&nbsp; <span style="font-weight:400;opacity:.85">Explore freely, nothing is saved permanently</span></span>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <a href="/demo/reset?key=varnam2026" style="padding:6px 14px;background:rgba(255,255,255,0.15);color:#fff;border-radius:6px;text-decoration:none;font-size:12px;font-weight:700">↺ Reset Demo</a>
+    <a href="/register" style="padding:6px 14px;background:#fff;color:#4f46e5;border-radius:6px;text-decoration:none;font-size:12px;font-weight:700">Create Account →</a>
+  </div>
+</div>
+{% endif %}
 
 <div class="topbar">
 <a href="/login" class="logo" style="text-decoration:none">Expense<span>Snap</span></a>
