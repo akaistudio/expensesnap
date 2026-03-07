@@ -1708,11 +1708,15 @@ backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:cente
 border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
 
 @media(max-width:768px){
-.topbar{padding:16px 20px;flex-wrap:wrap;gap:12px}.main{padding:20px}
-.nav{padding:0 12px;overflow-x:auto}.nav-tab{padding:14px 16px;font-size:13px;white-space:nowrap}
-.upload-zone{padding:40px 20px}.stats-grid{grid-template-columns:repeat(2,1fr);gap:12px}
-.stat-value{font-size:24px}.table-wrap{overflow-x:auto}table{min-width:600px}
-.cat-name{width:120px}.user-badge{display:none}.company-card{flex-direction:column;gap:12px;align-items:flex-start}}
+.topbar{padding:10px 14px;flex-wrap:wrap;gap:8px}.topbar-right{flex-wrap:wrap;gap:4px}
+.topbar-right a,.topbar-right button{font-size:12px!important;padding:5px 8px!important}
+.main{padding:12px}.nav{padding:0 12px;overflow-x:auto}
+.nav-tab{padding:12px 14px;font-size:13px;white-space:nowrap}
+.upload-zone{padding:30px 16px}.stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+.stat-value{font-size:22px}.table-wrap{overflow-x:auto}table{min-width:560px}
+th,td{padding:8px 10px;font-size:12px}.cat-name{width:100px}
+.user-badge{display:none}.company-card{flex-direction:column;gap:10px;align-items:flex-start}
+input,select,textarea{font-size:16px!important}}
 </style></head><body>
 {% if is_demo %}
 <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:600;color:#fff;position:sticky;top:0;z-index:200;flex-wrap:wrap">
