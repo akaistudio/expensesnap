@@ -390,36 +390,26 @@ def auto_login():
 
 @app.route('/demo')
 def demo_auto_login():
-    """One-click demo — shared Bloom Studio account, reseeds every 24h."""
+    """One-click demo — shared Bloom Studio account. Seed on first visit only."""
     import uuid as _uuid
-    from datetime import datetime, timedelta
     demo_email = 'demo@varnam.app'
     cid = 'bloom-demo'
     conn = get_db(); cur = conn.cursor()
-    # Ensure demo_reset_at column exists
-    try:
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_reset_at TIMESTAMP")
-        conn.commit()
-    except: pass
     cur.execute("INSERT INTO companies (id, name, home_currency) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING", (cid,'Bloom Studio','INR'))
     cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
     user = cur.fetchone()
     needs_seed = False
     if not user:
         uid = str(_uuid.uuid4())[:8]
-        cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id,demo_reset_at) VALUES (%s,%s,%s,%s,%s,%s,NOW())",
+        cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id) VALUES (%s,%s,%s,%s,%s,%s)",
                    (uid,'Demo User',demo_email,hash_password('demo123'),'super_admin',cid))
         conn.commit()
         cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
         user = cur.fetchone()
         needs_seed = True
-    else:
-        last_reset = user.get('demo_reset_at')
-        if not last_reset or (datetime.utcnow() - last_reset.replace(tzinfo=None)) > timedelta(hours=24):
-            needs_seed = True
     if needs_seed:
         cur.execute("DELETE FROM expenses WHERE company_id=%s", (cid,))
-        cur.execute("UPDATE users SET demo_reset_at=NOW(), company_id=%s WHERE email=%s", (cid, demo_email))
+        cur.execute("UPDATE users SET company_id=%s WHERE email=%s", (cid, demo_email))
         expenses = [
             ('2026-01-05','Adobe Creative Cloud','Online','Software',5900,0,5900,'Credit Card','INR'),
             ('2026-01-08','Starbucks Reserve','Bangalore','Meals & Entertainment',399,19,399,'UPI','INR'),
