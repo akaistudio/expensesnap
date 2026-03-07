@@ -389,8 +389,12 @@ def auto_login():
     return redirect('/')
 
 @app.route('/demo')
+@app.route('/demo/reset')
 def demo_auto_login():
     """One-click demo — shared Bloom Studio account. Seed on first visit only."""
+    force_reseed = request.path == '/demo/reset' and request.args.get('key') == 'varnam2026'
+    if request.path == '/demo/reset' and not force_reseed:
+        return redirect('/demo')
     import uuid as _uuid
     demo_email = 'demo@varnam.app'
     cid = 'bloom-demo'
@@ -406,6 +410,8 @@ def demo_auto_login():
         conn.commit()
         cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
         user = cur.fetchone()
+        needs_seed = True
+    elif force_reseed:
         needs_seed = True
     if needs_seed:
         cur.execute("DELETE FROM expenses WHERE company_id=%s", (cid,))
@@ -439,6 +445,7 @@ def demo_auto_login():
     session['user_role'] = user['role']
     session['company_id'] = cid
     session['company_name'] = 'Bloom Studio'
+    session['is_demo'] = True
     session.permanent = True
     return redirect('/')
 
@@ -1063,7 +1070,8 @@ def index():
         return redirect('/welcome')
     return render_template_string(MAIN_HTML, user_name=session.get('user_name',''),
                                   user_role=session.get('user_role','member'), company_name=session.get('company_name',''),
-                                  company_id=session.get('company_id',''))
+                                  company_id=session.get('company_id',''),
+                                  is_demo=session.get('is_demo', False))
 
 
 # ── Login HTML ─────────────────────────────────────────────────
@@ -1981,11 +1989,12 @@ background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var
 const USER_ROLE = '{{ user_role }}';
 const userRole = USER_ROLE;
 const isSuperAdmin = USER_ROLE === 'super_admin';
+const IS_DEMO = {{ 'true' if is_demo else 'false' }};
 const myCompanyId = '{{ company_id }}' === 'None' ? '' : '{{ company_id }}';
-let selectedCompany = '';
+let selectedCompany = myCompanyId;
 
-// Show super admin UI
-if (isSuperAdmin) {
+// Show super admin UI — but not for demo users
+if (isSuperAdmin && !IS_DEMO) {
   document.getElementById('companiesTab').style.display = 'block';
   document.getElementById('companySelector').style.display = 'flex';
   loadCompanyFilter();
