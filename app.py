@@ -406,7 +406,7 @@ def demo_auto_login():
     if not user:
         uid = str(_uuid.uuid4())[:8]
         cur.execute("INSERT INTO users (id,name,email,password_hash,role,company_id) VALUES (%s,%s,%s,%s,%s,%s)",
-                   (uid,'Demo User',demo_email,hash_password('demo123'),'super_admin',cid))
+                   (uid,'Demo User',demo_email,hash_password('demo123'),'company_admin',cid))
         conn.commit()
         cur.execute("SELECT * FROM users WHERE email=%s", (demo_email,))
         user = cur.fetchone()
@@ -414,6 +414,7 @@ def demo_auto_login():
     elif force_reseed:
         needs_seed = True
     if needs_seed:
+        cur.execute("UPDATE users SET role='company_admin', company_id=%s WHERE email=%s", (cid, demo_email))
         cur.execute("DELETE FROM expenses WHERE company_id=%s", (cid,))
         cur.execute("UPDATE users SET company_id=%s WHERE email=%s", (cid, demo_email))
         expenses = [
@@ -442,7 +443,7 @@ def demo_auto_login():
     session.clear()
     session['user_id'] = user['id']
     session['user_name'] = user['name']
-    session['user_role'] = user['role']
+    session['user_role'] = 'company_admin'
     session['company_id'] = cid
     session['company_name'] = 'Bloom Studio'
     session['is_demo'] = True
